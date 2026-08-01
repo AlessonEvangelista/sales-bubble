@@ -1,0 +1,48 @@
+{
+  "schema_version": 1,
+  "diagram_type": "workflow",
+  "meta": {
+    "title": "Bolha Venda - Mapeamento de Casos de Uso",
+    "subtitle": "Interações entre Usuários PF, Empresas PJ e Administradores da plataforma",
+    "output": "002-llm/003 diagrams/html/use-case.html",
+    "animation": "trace",
+    "quality_profile": "showcase",
+    "views": [
+      { "id": "pf-actions", "label": "Ações Usuário PF", "focus": ["pf_actor", "uc_canvas", "uc_cota_pf"], "note": "Navegação visual e compra de 1 cota." },
+      { "id": "pj-actions", "label": "Ações Empresa PJ", "focus": ["pj_actor", "uc_bids"], "note": "Criação de ofertas e lances comerciais." },
+      { "id": "admin-actions", "label": "Governança Admin", "focus": ["uc_triage", "admin_actor"], "note": "Moderação e resolução de disputas." }
+    ]
+  },
+  "lanes": [
+    { "id": "user_actor_lane", "label": "Usuários & Atores" },
+    { "id": "usecase_lane", "label": "Casos de Uso da Plataforma" },
+    { "id": "settlement_lane", "label": "Triagem & Confiabilidade" }
+  ],
+  "phases": [
+    { "id": "interaction", "label": "1. Acesso", "fromCol": 0, "toCol": 1 },
+    { "id": "execution", "label": "2. Operação", "fromCol": 2, "toCol": 3, "variant": "emphasis" },
+    { "id": "control", "label": "3. Governança", "fromCol": 4, "toCol": 5, "variant": "dashed" }
+  ],
+  "mainPath": ["pf_actor", "uc_canvas", "uc_cota_pf", "uc_triage"],
+  "nodes": [
+    { "id": "pf_actor", "lane": "user_actor_lane", "col": 0, "width": 76, "type": "external", "label": "Usuário PF", "sublabel": "1 cota / bolha" },
+    { "id": "pj_actor", "lane": "user_actor_lane", "col": 1, "width": 76, "type": "external", "label": "Empresa PJ", "sublabel": "Oferta / Lances" },
+    { "id": "uc_canvas", "lane": "usecase_lane", "col": 0, "width": 76, "type": "frontend", "label": "Canvas UI", "sublabel": "Pan & Zoom" },
+    { "id": "uc_cota_pf", "lane": "usecase_lane", "col": 2, "width": 76, "type": "backend", "label": "Cotas", "sublabel": "PF & PJ" },
+    { "id": "uc_bids", "lane": "usecase_lane", "col": 3, "width": 76, "type": "messagebus", "label": "Lances C2B", "sublabel": "Proposta PJ" },
+    { "id": "uc_triage", "lane": "settlement_lane", "col": 4, "width": 76, "type": "database", "label": "Triagem", "sublabel": "Confirmação" },
+    { "id": "admin_actor", "lane": "settlement_lane", "col": 5, "width": 76, "type": "security", "label": "Admin", "sublabel": "Reputação" }
+  ],
+  "edges": [
+    { "from": "pf_actor", "to": "uc_canvas", "variant": "emphasis", "route": "drop", "fromSide": "bottom", "toSide": "top" },
+    { "from": "pj_actor", "to": "uc_bids", "variant": "dashed", "route": "drop", "fromSide": "bottom", "toSide": "top" },
+    { "from": "uc_canvas", "to": "uc_cota_pf", "variant": "emphasis", "route": "drop", "fromSide": "bottom", "toSide": "top" },
+    { "from": "uc_cota_pf", "to": "uc_triage", "variant": "emphasis", "route": "drop", "fromSide": "bottom", "toSide": "top" },
+    { "from": "uc_bids", "to": "uc_triage", "variant": "dashed", "route": "drop", "fromSide": "bottom", "toSide": "top" },
+    { "from": "uc_triage", "to": "admin_actor", "variant": "security" }
+  ],
+  "cards": [
+    { "dot": "cyan", "title": "Atores & Papéis", "items": ["Usuário PF adquire 1 cota e indica fornecedores", "Empresa PJ oferta lotes e submete lances em bolhas C2B"] },
+    { "dot": "emerald", "title": "Governança e Moderação", "items": ["Administrador arbitra disputas pós-explosão", "Histórico transparente de score de confiabilidade"] }
+  ]
+}

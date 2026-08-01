@@ -1,5 +1,7 @@
 # Diagrama de Atividades - Bolha Venda (Sales Bubble)
 
+> 🎨 **Diagrama Interativo Archify**: [Visualizar Diagrama Interativo HTML (Archify)](file:///c:/Users/al_ja/OneDrive/Documents/work/Pessoal/IA/Vault/bolha-venda/002-llm/003%20diagrams/html/activities.html)
+
 Este diagrama detalha as atividades do ciclo de vida de uma bolha no sistema.
 
 ```mermaid

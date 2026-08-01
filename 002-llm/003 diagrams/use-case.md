@@ -1,5 +1,7 @@
 # Diagrama de Casos de Uso - Bolha Venda (Sales Bubble)
 
+> 🎨 **Diagrama Interativo Archify**: [Visualizar Diagrama Interativo HTML (Archify)](file:///c:/Users/al_ja/OneDrive/Documents/work/Pessoal/IA/Vault/bolha-venda/002-llm/003%20diagrams/html/use-case.html)
+
 Este diagrama representa os principais Atores e seus respectivos Casos de Uso dentro do sistema Bolha Venda.
 
 ```mermaid

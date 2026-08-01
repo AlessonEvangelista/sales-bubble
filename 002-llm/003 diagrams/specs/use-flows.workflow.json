@@ -1,0 +1,46 @@
+{
+  "schema_version": 1,
+  "diagram_type": "workflow",
+  "meta": {
+    "title": "Bolha Venda - Fluxo e Jornada do Usuário",
+    "subtitle": "Jornada desde o acesso ao canvas visual, adesão de cotas até a explosão e triagem",
+    "output": "002-llm/003 diagrams/html/use-flows.html",
+    "animation": "trace",
+    "quality_profile": "showcase",
+    "views": [
+      { "id": "canvas-exploration", "label": "Navegação no Canvas", "focus": ["access", "canvas", "inspect"], "note": "Interação inicial de pan e zoom." },
+      { "id": "quota-joining", "label": "Adesão de Cotas", "focus": ["inspect", "quota_entry"], "note": "Regras diferenciadas para PF (1 cota) e PJ (lote)." },
+      { "id": "closure-and-score", "label": "Encerramento e Reputação", "focus": ["explosion", "triage_score"], "note": "Confirmação e score de confiabilidade." }
+    ]
+  },
+  "lanes": [
+    { "id": "user_journey", "label": "Jornada do Usuário" },
+    { "id": "canvas_layer", "label": "Camada Visual Canvas" },
+    { "id": "engine_layer", "label": "Motor Backend & Triagem" }
+  ],
+  "phases": [
+    { "id": "discovery", "label": "1. Descoberta", "fromCol": 0, "toCol": 1 },
+    { "id": "participation", "label": "2. Adesão", "fromCol": 2, "toCol": 3, "variant": "emphasis" },
+    { "id": "settlement", "label": "3. Encerramento", "fromCol": 4, "toCol": 5, "variant": "dashed" }
+  ],
+  "mainPath": ["access", "canvas", "inspect", "quota_entry", "explosion", "triage_score"],
+  "nodes": [
+    { "id": "access", "lane": "user_journey", "col": 0, "width": 64, "type": "external", "label": "Acesso", "sublabel": "Login" },
+    { "id": "canvas", "lane": "canvas_layer", "col": 1, "width": 64, "type": "frontend", "label": "Canvas", "sublabel": "Navegação" },
+    { "id": "inspect", "lane": "canvas_layer", "col": 2, "width": 64, "type": "frontend", "label": "Detalhes", "sublabel": "Cotas" },
+    { "id": "quota_entry", "lane": "engine_layer", "col": 2, "width": 64, "type": "backend", "label": "Cotas", "sublabel": "1 PF / N PJ" },
+    { "id": "explosion", "lane": "engine_layer", "col": 4, "width": 64, "type": "security", "label": "Explosão", "sublabel": "Timer 0s" },
+    { "id": "triage_score", "lane": "engine_layer", "col": 5, "width": 64, "type": "database", "label": "Triagem", "sublabel": "Score Final" }
+  ],
+  "edges": [
+    { "from": "access", "to": "canvas", "variant": "emphasis", "route": "drop", "fromSide": "bottom", "toSide": "top" },
+    { "from": "canvas", "to": "inspect", "variant": "emphasis", "route": "drop", "fromSide": "bottom", "toSide": "top" },
+    { "from": "inspect", "to": "quota_entry", "variant": "emphasis", "route": "drop", "fromSide": "bottom", "toSide": "top" },
+    { "from": "quota_entry", "to": "explosion", "variant": "security" },
+    { "from": "explosion", "to": "triage_score", "variant": "emphasis" }
+  ],
+  "cards": [
+    { "dot": "cyan", "title": "Jornada do Comprador", "items": ["Navegação orgânica no canvas por pan e zoom", "Entrada simples em cota com recálculo instantâneo"] },
+    { "dot": "emerald", "title": "Fechamento Transparente", "items": ["Notificação imediata ao explodir a bolha", "Score atualizado mediante validação recíproca"] }
+  ]
+}

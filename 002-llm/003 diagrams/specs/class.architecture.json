@@ -1,0 +1,63 @@
+{
+  "schema_version": 1,
+  "diagram_type": "architecture",
+  "meta": {
+    "title": "Bolha Venda - Modelo de Domínio e Classes",
+    "subtitle": "Entidades principais, relacionamentos, limites de cotas e pontuação de reputação",
+    "output": "002-llm/003 diagrams/html/class.html",
+    "visual_preset": "blueprint",
+    "animation": "trace",
+    "quality_profile": "showcase",
+    "views": [
+      {
+        "id": "users-and-companies",
+        "label": "Usuários e Empresas",
+        "focus": ["user_pf", "company_pj", "auth_service"],
+        "note": "Perfis de Pessoa Física (1 cota) e Pessoa Jurídica (múltiplas cotas)."
+      },
+      {
+        "id": "bubble-core",
+        "label": "Motor Core de Bolhas",
+        "focus": ["bubble_entity", "quota_entity", "bid_entity"],
+        "note": "Gestão de cotas, descontos progressivos e lances comerciais."
+      },
+      {
+        "id": "triage-and-score",
+        "label": "Triagem e Confiabilidade",
+        "focus": ["triage_entity", "score_entity", "database"],
+        "note": "Validação pós-explosão da bolha e score de reputação."
+      }
+    ]
+  },
+  "components": [
+    { "id": "user_pf", "type": "external", "label": "Usuário PF", "sublabel": "Max 1 cota/bolha", "pos": [40, 200], "size": [130, 64], "tag": "comprador" },
+    { "id": "company_pj", "type": "external", "label": "Empresa PJ", "sublabel": "Múltiplas cotas", "pos": [40, 420], "size": [130, 64], "tag": "vendedor / comprador" },
+    { "id": "auth_service", "type": "security", "label": "Auth & User Core", "sublabel": "CPF / CNPJ Validated", "pos": [240, 310], "size": [140, 64], "tag": "segurança" },
+    { "id": "bubble_entity", "type": "backend", "label": "Entidade Bubble", "sublabel": "Venda & Compra", "pos": [460, 310], "size": [140, 64], "tag": "core domain" },
+    { "id": "quota_entity", "type": "backend", "label": "Entidade Quota", "sublabel": "Preço & Volume", "pos": [680, 180], "size": [140, 64], "tag": "core domain" },
+    { "id": "bid_entity", "type": "backend", "label": "Entidade Bid", "sublabel": "Lances C2B/B2B", "pos": [680, 440], "size": [140, 64], "tag": "core domain" },
+    { "id": "triage_entity", "type": "backend", "label": "Entidade Triage", "sublabel": "Confirmação Pós-Explosão", "pos": [900, 310], "size": [150, 64], "tag": "liquidação" },
+    { "id": "score_entity", "type": "backend", "label": "Score Record", "sublabel": "Reputação Recíproca", "pos": [1140, 310], "size": [140, 64], "tag": "métrica" },
+    { "id": "database", "type": "database", "label": "PostgreSQL", "sublabel": "Persistência ACID", "pos": [900, 520], "size": [150, 64], "tag": "banco de dados" }
+  ],
+  "boundaries": [
+    { "kind": "security-group", "label": "Camada de Autenticação", "wraps": ["user_pf", "company_pj", "auth_service"] },
+    { "kind": "security-group", "label": "Motor Core de Negócio", "wraps": ["bubble_entity", "quota_entity", "bid_entity", "triage_entity", "score_entity"] },
+    { "kind": "security-group", "label": "Persistência de Dados", "wraps": ["database"] }
+  ],
+  "connections": [
+    { "from": "user_pf", "to": "auth_service", "label": "Autentica", "variant": "emphasis" },
+    { "from": "company_pj", "to": "auth_service", "label": "Autentica", "variant": "emphasis" },
+    { "from": "auth_service", "to": "bubble_entity", "label": "Cria / Gerencia", "variant": "emphasis" },
+    { "from": "bubble_entity", "to": "quota_entity", "label": "Possui Cotas", "variant": "emphasis", "route": "orthogonal-h" },
+    { "from": "bubble_entity", "to": "bid_entity", "label": "Recebe Lances", "variant": "dashed", "route": "orthogonal-h" },
+    { "from": "bubble_entity", "to": "triage_entity", "label": "Triagem", "variant": "security", "route": "straight", "labelDy": -22 },
+    { "from": "triage_entity", "to": "score_entity", "label": "Gera Score", "variant": "emphasis", "route": "straight", "labelDy": -22 },
+    { "from": "triage_entity", "to": "database", "label": "Persiste", "variant": "dashed", "fromSide": "bottom", "toSide": "top", "route": "straight", "labelDy": 24 }
+  ],
+  "cards": [
+    { "dot": "cyan", "title": "Regra de Negócio de Cotas", "items": ["Usuário PF adquire no máximo 1 cota por bolha", "Empresa PJ adquire cotas em lote", "Controle concorrente contra race-condition"] },
+    { "dot": "emerald", "title": "Modelos Suportados", "items": ["B2C: Empresa vende para usuários com desconto", "C2B: Usuários agrupam pedido para receber lances de empresas", "B2B / C2C: Transações flexíveis entre partes"] },
+    { "dot": "amber", "title": "Confiabilidade & Score", "items": ["Conclusão na triagem gera avaliação positiva", "Pontuação visível no perfil público para transparência"] }
+  ]
+}

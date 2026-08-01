@@ -1,0 +1,62 @@
+{
+  "schema_version": 1,
+  "diagram_type": "sequence",
+  "meta": {
+    "title": "Bolha Venda - Diagrama de Sequência de Transações",
+    "subtitle": "Criação, adesão concorrente de cotas, temporizador no Redis, explosão e triagem",
+    "output": "002-llm/003 diagrams/html/sequence.html",
+    "viewBox": [860, 900],
+    "animation": "trace",
+    "visual_preset": "signal-flow",
+    "quality_profile": "showcase",
+    "views": [
+      { "id": "creation-and-setup", "label": "Criação da Bolha", "focus": ["client", "canvas", "api", "redis"], "note": "Agendamento do job de expiração no Redis e broadcast WS." },
+      { "id": "quota-purchase", "label": "Adesão de Cotas", "focus": ["client", "api", "redis", "db"], "note": "Lock concorrente com Redlock e decremento atômico de cotas." },
+      { "id": "expiration-and-triage", "label": "Explosão & Triagem", "focus": ["redis", "api", "ws", "canvas", "client"], "note": "Transição de estado para IN_TRIAGE e cálculo de score." }
+    ]
+  },
+  "participants": [
+    { "id": "client", "type": "external", "label": "Cliente Web", "sublabel": "Navegador" },
+    { "id": "canvas", "type": "frontend", "label": "Canvas Engine", "sublabel": "PixiJS / WebGL" },
+    { "id": "api", "type": "backend", "label": "API Core", "sublabel": "NestJS / Express" },
+    { "id": "redis", "type": "messagebus", "label": "Redis", "sublabel": "Timers & Lock" },
+    { "id": "db", "type": "database", "label": "PostgreSQL", "sublabel": "Persistência ACID" },
+    { "id": "ws", "type": "messagebus", "label": "WebSockets", "sublabel": "Socket.io" }
+  ],
+  "segments": [
+    { "from": 150, "to": 300, "label": "1. Criação e Agendamento" },
+    { "from": 320, "to": 520, "label": "2. Adesão de Cotas" },
+    { "from": 540, "to": 780, "label": "3. Explosão e Triagem" }
+  ],
+  "messages": [
+    { "from": "client", "to": "canvas", "y": 170, "label": "Criar Bolha de Venda", "variant": "emphasis" },
+    { "from": "canvas", "to": "api", "y": 205, "label": "POST /api/v1/bubbles", "variant": "emphasis" },
+    { "from": "api", "to": "db", "y": 240, "label": "INSERT INTO bubbles", "variant": "default" },
+    { "from": "api", "to": "redis", "y": 275, "label": "Schedule Expiration Job", "variant": "dashed" },
+    
+    { "from": "client", "to": "api", "y": 340, "label": "POST /api/v1/bubbles/123/quotas", "variant": "emphasis" },
+    { "from": "api", "to": "redis", "y": 375, "label": "Acquire Lock (Redlock)", "variant": "security" },
+    { "from": "api", "to": "db", "y": 410, "label": "UPDATE bubbles SET current_quotas = +1", "variant": "emphasis" },
+    { "from": "api", "to": "ws", "y": 450, "label": "Broadcast EVENT_QUOTA_UPDATED", "variant": "dashed" },
+    { "from": "ws", "to": "canvas", "y": 485, "label": "Update Canvas Visual", "variant": "return" },
+
+    { "from": "redis", "to": "api", "y": 560, "label": "Trigger Expiration Job (0s)", "variant": "security" },
+    { "from": "api", "to": "db", "y": 600, "label": "UPDATE status = 'IN_TRIAGE'", "variant": "default" },
+    { "from": "api", "to": "ws", "y": 640, "label": "Broadcast EVENT_BUBBLE_EXPLODED", "variant": "dashed" },
+    { "from": "ws", "to": "canvas", "y": 680, "label": "Anima Explosão e Notifica Parte", "variant": "return" },
+    { "from": "client", "to": "api", "y": 720, "label": "POST /api/v1/triages/confirm", "variant": "emphasis" },
+    { "from": "api", "to": "db", "y": 755, "label": "UPDATE Score Record", "variant": "return" }
+  ],
+  "activations": [
+    { "participant": "api", "from": 195, "to": 290, "type": "backend" },
+    { "participant": "api", "from": 330, "to": 495, "type": "backend" },
+    { "participant": "redis", "from": 365, "to": 395, "type": "messagebus" },
+    { "participant": "db", "from": 400, "to": 435, "type": "database" },
+    { "participant": "api", "from": 550, "to": 770, "type": "backend" }
+  ],
+  "cards": [
+    { "dot": "cyan", "title": "Agendamento no Redis", "items": ["Jobs agendados disparam com precisão de milissegundos", "Evita consultas repetitivas de polling no PostgreSQL"] },
+    { "dot": "orange", "title": "Lock Concorrente", "items": ["Redlock garante compra única da última cota", "Previne overbooking sob alta concorrência simultânea"] },
+    { "dot": "emerald", "title": "Tempo Real via WebSocket", "items": ["Broadcast instantâneo para todos os clientes ativos", "Canvas atualiza cotas e explosões sem recarregar"] }
+  ]
+}

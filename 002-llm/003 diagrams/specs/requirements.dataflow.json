@@ -1,0 +1,47 @@
+{
+  "schema_version": 1,
+  "diagram_type": "dataflow",
+  "meta": {
+    "title": "Bolha Venda - Dataflow e Mapa de Requisitos",
+    "subtitle": "Fluxo de requisitos desde autenticação, cotas, temporizador até liquidação e score",
+    "output": "002-llm/003 diagrams/html/requirements.html",
+    "viewBox": [1080, 780],
+    "animation": "trace",
+    "visual_preset": "signal-flow",
+    "quality_profile": "showcase",
+    "views": [
+      { "id": "auth-and-canvas", "label": "Perfis e Canvas", "focus": ["req_auth", "req_canvas", "req_quota"], "note": "Garantia de limite de 1 cota para PF e N para PJ." },
+      { "id": "timers-and-bids", "label": "Temporizadores e Lances", "focus": ["req_quota", "req_timer", "req_bids"], "note": "Agendamento Redis e submissão de ofertas C2B." },
+      { "id": "triage-and-score", "label": "Triagem e Score", "focus": ["req_timer", "req_triage", "req_score"], "note": "Confirmação pós-explosão e score de confiabilidade." }
+    ]
+  },
+  "stages": [
+    { "label": "Autenticação" },
+    { "label": "Canvas & Cotas" },
+    { "label": "Processamento" },
+    { "label": "Triagem" },
+    { "label": "Reputação" }
+  ],
+  "nodes": [
+    { "id": "req_auth", "type": "security", "label": "Auth Core", "sublabel": "CPF / CNPJ Validado", "stage": 0, "row": 0, "tag": "RF01" },
+    { "id": "req_canvas", "type": "frontend", "label": "Canvas Visual", "sublabel": "Pan & Zoom 60 FPS", "stage": 1, "row": 0, "tag": "RF02" },
+    { "id": "req_quota", "type": "backend", "label": "Regra de Cotas", "sublabel": "1 PF / N PJ", "stage": 1, "row": 2, "tag": "RF04" },
+    { "id": "req_timer", "type": "messagebus", "label": "Redis Timers", "sublabel": "BullMQ Worker", "stage": 2, "row": 0, "tag": "RF06" },
+    { "id": "req_bids", "type": "backend", "label": "Lances C2B", "sublabel": "Oferta Fornecedor", "stage": 2, "row": 2, "tag": "RF05" },
+    { "id": "req_triage", "type": "database", "label": "Painel Triagem", "sublabel": "Aceite Recíproco", "stage": 3, "row": 1, "tag": "RF07" },
+    { "id": "req_score", "type": "external", "label": "Score Core", "sublabel": "Pontuação Pública", "stage": 4, "row": 1, "tag": "RF07.3" }
+  ],
+  "flows": [
+    { "from": "req_auth", "to": "req_canvas", "label": "Acesso", "variant": "emphasis", "route": "straight" },
+    { "from": "req_canvas", "to": "req_quota", "label": "Adesão Cota", "variant": "emphasis", "route": "vertical-channel" },
+    { "from": "req_quota", "to": "req_timer", "label": "Agenda Timer", "variant": "emphasis", "route": "vertical-channel" },
+    { "from": "req_quota", "to": "req_bids", "label": "Recebe Oferta", "variant": "dashed", "route": "straight", "labelDy": 28 },
+    { "from": "req_timer", "to": "req_triage", "label": "Explosão 0s", "variant": "security", "route": "vertical-channel" },
+    { "from": "req_bids", "to": "req_triage", "label": "Aceite Lance", "variant": "default", "route": "vertical-channel" },
+    { "from": "req_triage", "to": "req_score", "label": "Atualiza Score", "variant": "emphasis", "route": "straight" }
+  ],
+  "cards": [
+    { "dot": "cyan", "title": "Requisitos de Entrada", "items": ["Identificação estrita de CPF/CNPJ previne fraudes", "Limite de 1 cota por PF evita monopolização do desconto"] },
+    { "dot": "emerald", "title": "Integridade & Reputação", "items": ["Redis executa temporizadores sem falha de concorrência", "Triagem transparente gera score de confiabilidade"] }
+  ]
+}

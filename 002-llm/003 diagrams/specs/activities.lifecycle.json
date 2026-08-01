@@ -1,0 +1,59 @@
+{
+  "schema_version": 1,
+  "diagram_type": "lifecycle",
+  "meta": {
+    "title": "Bolha Venda - Atividades e Ciclo de Vida da Bolha",
+    "subtitle": "Estados de criação, adesão de cotas, temporizador, explosão, triagem e reputação",
+    "output": "002-llm/003 diagrams/html/activities.html",
+    "viewBox": [960, 680],
+    "animation": "trace",
+    "quality_profile": "showcase",
+    "views": [
+      { "id": "main-lifecycle", "label": "Ciclo Principal", "focus": ["created", "active", "exploded", "in_triage", "completed"], "note": "Transição direta da criação à conclusão com sucesso." },
+      { "id": "disputes-and-admin", "label": "Triagem e Moderação", "focus": ["in_triage", "dispute", "cancelled"], "note": "Caminho de divergência ou arbitragem por suporte." }
+    ]
+  },
+  "lanes": [
+    { "id": "main", "label": "Fases da Bolha" },
+    { "id": "triage", "label": "Liquidação & Triagem" },
+    { "id": "terminal", "label": "Desfecho Final" }
+  ],
+  "states": [
+    { "id": "created", "type": "start", "label": "Criada", "sublabel": "parâmetros definidos", "lane": "main", "col": 0, "step": "01", "tag": "draft" },
+    { "id": "active", "type": "active", "label": "Ativa no Canvas", "sublabel": "recebendo cotas", "lane": "main", "col": 1, "step": "02", "tag": "open" },
+    { "id": "exploded", "type": "active", "label": "Encerrada", "sublabel": "tempo 0s / 100%", "lane": "main", "col": 2, "step": "03", "tag": "closed" },
+    { "id": "in_triage", "type": "decision", "label": "Em Triagem", "sublabel": "validação recíproca", "lane": "triage", "col": 2, "step": "04", "tag": "review" },
+    { "id": "completed", "type": "success", "label": "Concluída", "sublabel": "score positivo +", "lane": "terminal", "col": 2, "step": "05", "tag": "done" },
+    { "id": "dispute", "type": "waiting", "label": "Em Disputa", "sublabel": "intervenção admin", "lane": "triage", "col": 0, "tag": "support" },
+    { "id": "cancelled", "type": "failure", "label": "Cancelada", "sublabel": "score negativo -", "lane": "terminal", "col": 0, "tag": "failed" }
+  ],
+  "transitions": [
+    { "id": "publish", "from": "created", "to": "active", "variant": "emphasis", "route": "straight" },
+    { "id": "timer-expired", "from": "active", "to": "exploded", "variant": "security", "route": "straight" },
+    { "id": "start-triage", "from": "exploded", "to": "in_triage", "variant": "emphasis", "fromSide": "bottom", "toSide": "top", "route": "drop" },
+    { "id": "triage-success", "from": "in_triage", "to": "completed", "variant": "emphasis", "fromSide": "bottom", "toSide": "top", "route": "drop" },
+    { "id": "triage-dispute", "from": "in_triage", "to": "dispute", "variant": "security", "fromSide": "left", "toSide": "right", "route": "straight" },
+    { "id": "dispute-resolved", "from": "dispute", "to": "completed", "variant": "emphasis", "fromSide": "bottom", "toSide": "left", "route": "drop" },
+    { "id": "dispute-failed", "from": "dispute", "to": "cancelled", "variant": "security", "fromSide": "bottom", "toSide": "top", "route": "drop" }
+  ],
+  "cards": [
+    {
+      "dot": "cyan",
+      "title": "Fase Ativa",
+      "items": [
+        "A bolha fica visível no canvas recebendo cotas",
+        "Temporizador do Redis conta regressivamente",
+        "Regras de limite de cota são validadas na entrada"
+      ]
+    },
+    {
+      "dot": "emerald",
+      "title": "Explosão e Triagem",
+      "items": [
+        "Encerramento automático quando o tempo atinge 0s ou 100% de cotas",
+        "Início imediato do painel de triagem entre comprador e vendedor",
+        "Confirmações bem-sucedidas elevam o Score de Confiabilidade"
+      ]
+    }
+  ]
+}

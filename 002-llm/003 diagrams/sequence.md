@@ -1,5 +1,7 @@
 # Diagrama de Sequência - Bolha Venda (Sales Bubble)
 
+> 🎨 **Diagrama Interativo Archify**: [Visualizar Diagrama Interativo HTML (Archify)](file:///c:/Users/al_ja/OneDrive/Documents/work/Pessoal/IA/Vault/bolha-venda/002-llm/003%20diagrams/html/sequence.html)
+
 Este diagrama ilustra a sequência de chamadas entre o Usuário/Empresa, Frontend Canvas, Servidor Backend, Redis Timer e Banco de Dados.
 
 ```mermaid

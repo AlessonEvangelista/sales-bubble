@@ -1,5 +1,7 @@
 # Diagrama de Classes - Bolha Venda (Sales Bubble)
 
+> 🎨 **Diagrama Interativo Archify**: [Visualizar Diagrama Interativo HTML (Archify)](file:///c:/Users/al_ja/OneDrive/Documents/work/Pessoal/IA/Vault/bolha-venda/002-llm/003%20diagrams/html/class.html)
+
 Este diagrama detalha a estrutura de modelo de dados orientada a objetos das entidades do domínio Bolha Venda.
 
 ```mermaid
