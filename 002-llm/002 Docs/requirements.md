@@ -1,5 +1,7 @@
 # Especificação de Requisitos - Bolha Venda (Sales Bubble)
 
+> ⚠️ **Substituído (06/10/2026)** pela [ERS](03-requisitos/ers.md) e pelo [PRD v2.1](../PRD.MD). Desatualizado: numeração RF diferente do PRD; RF03.1 restringe bolha de venda a empresas (a Spec permite PF em C2C); RF05.2 deixa participantes aceitarem lances (só o criador escolhe — ADR-0005).
+
 Este documento detalha os **Requisitos Funcionais (RF)** e **Requisitos Não-Funcionais (RNF)** para a plataforma Bolha Venda.
 
 ---

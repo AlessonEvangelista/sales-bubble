@@ -1,0 +1,188 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Bolha Venda — Protótipo Hi-Fi Navegável (Gate A)</title>
+  <!-- Google Fonts: Inter & JetBrains Mono -->
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800&family=JetBrains+Mono:wght@400;500;600;700&display=swap" rel="stylesheet">
+  <!-- Tailwind CSS via CDN -->
+  <script src="https://cdn.tailwindcss.com"></script>
+  <!-- Custom Project Styles -->
+  <link rel="stylesheet" href="styles.css">
+  <script>
+    tailwind.config = {
+      darkMode: 'class',
+      theme: {
+        extend: {
+          colors: {
+            'canvas-dark': '#0B0F19',
+            'canvas-light': '#F8FAFC',
+            'sale-blue': '#3B82F6',
+            'sale-purple': '#8B5CF6',
+            'purchase-emerald': '#10B981',
+            'purchase-cyan': '#06B6D4'
+          }
+        }
+      }
+    }
+  </script>
+</head>
+<body class="bg-[#0B0F19] text-slate-100 antialiased overflow-hidden select-none">
+
+  <!-- ========================================================================= -->
+  <!-- 1. TOP GLOBAL NAVIGATION BAR -->
+  <!-- ========================================================================= -->
+  <header class="fixed top-0 left-0 right-0 h-16 glass-panel z-40 px-4 md:px-6 flex items-center justify-between border-b border-white/10">
+    <!-- Brand & Status -->
+    <div class="flex items-center gap-3">
+      <div class="w-9 h-9 rounded-xl bg-gradient-to-tr from-blue-600 via-indigo-600 to-cyan-400 flex items-center justify-center shadow-lg shadow-blue-500/30">
+        <span class="text-xl font-black text-white">◉</span>
+      </div>
+      <div>
+        <span class="text-lg font-extrabold tracking-tight text-white flex items-center gap-2">
+          Bolha Venda
+          <span class="text-[10px] font-bold px-1.5 py-0.5 rounded bg-blue-500/20 text-blue-400 border border-blue-500/30 uppercase tracking-wider">Hi-Fi</span>
+        </span>
+      </div>
+    </div>
+
+    <!-- Search Bar & Filters -->
+    <div class="hidden lg:flex items-center gap-3 flex-1 max-w-xl mx-8">
+      <div class="relative w-full">
+        <span class="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none text-slate-400 text-sm">🔍</span>
+        <input type="text" id="search-bubbles-input" placeholder="Buscar bolhas por produto ou categoria… (ex: Fone, Café)" class="w-full pl-9 pr-4 py-2 bg-slate-900/80 border border-slate-700/80 rounded-xl text-xs text-white placeholder-slate-400 focus:outline-none focus:border-blue-500 transition shadow-inner">
+      </div>
+
+      <!-- Quick Filter Pills -->
+      <div class="flex items-center gap-1.5 shrink-0 text-xs">
+        <button class="filter-pill px-3 py-1.5 rounded-lg bg-slate-700 text-white font-semibold transition" data-filter="ALL">Todas</button>
+        <button class="filter-pill px-3 py-1.5 rounded-lg hover:bg-slate-800 text-slate-300 transition" data-filter="SALE">🏷 Venda</button>
+        <button class="filter-pill px-3 py-1.5 rounded-lg hover:bg-slate-800 text-slate-300 transition" data-filter="PURCHASE">🛒 Compra</button>
+        <button class="filter-pill px-3 py-1.5 rounded-lg hover:bg-slate-800 text-slate-300 transition" data-filter="NEAR_FULL">Quase cheia</button>
+      </div>
+    </div>
+
+    <!-- View Switcher & Actions -->
+    <div class="flex items-center gap-3">
+      <!-- Canvas | List Toggle (Spec RF02.3) -->
+      <div class="flex items-center p-1 bg-slate-900/90 rounded-xl border border-slate-800 text-xs font-semibold">
+        <button id="view-canvas-btn" class="px-3 py-1.5 rounded-lg bg-blue-600 text-white transition flex items-center gap-1.5 shadow-sm">
+          <span>🗺 Canvas</span>
+        </button>
+        <button id="view-list-btn" class="px-3 py-1.5 rounded-lg text-slate-400 hover:text-white transition flex items-center gap-1.5">
+          <span>📋 Lista</span>
+        </button>
+      </div>
+
+      <!-- Create Bubble Button -->
+      <button onclick="openModal('create_sale')" class="hidden sm:flex items-center gap-2 px-4 py-2 rounded-xl bg-gradient-to-r from-blue-600 to-indigo-600 hover:from-blue-500 hover:to-indigo-500 text-white text-xs font-bold shadow-lg shadow-blue-500/20 transition">
+        <span>+ Criar Bolha</span>
+      </button>
+
+      <!-- User Profile Badge & Score -->
+      <button onclick="openModal('score')" id="user-profile-btn" class="flex items-center gap-2.5 p-1.5 pr-3 rounded-xl bg-slate-800/80 hover:bg-slate-800 border border-slate-700/80 transition cursor-pointer">
+        <!-- Rendered by app.js -->
+      </button>
+    </div>
+  </header>
+
+  <!-- ========================================================================= -->
+  <!-- 2. INFINITE INTERACTIVE CANVAS VIEWPORT (T01) -->
+  <!-- ========================================================================= -->
+  <main id="canvas-container" class="w-full h-full">
+    <canvas id="bubble-canvas" class="w-full h-full block"></canvas>
+
+    <!-- Floating Zoom & Center Controls -->
+    <div class="fixed bottom-20 sm:bottom-6 right-6 flex flex-col gap-2 z-30">
+      <div class="glass-panel p-1.5 rounded-2xl flex flex-col gap-1 shadow-2xl">
+        <button id="zoom-in-btn" class="w-9 h-9 rounded-xl hover:bg-slate-700 flex items-center justify-center text-lg font-bold text-slate-200" title="Aproximar (+)">+</button>
+        <div id="zoom-level-text" class="text-[10px] text-center font-mono-numbers text-slate-400 py-0.5">110%</div>
+        <button id="zoom-out-btn" class="w-9 h-9 rounded-xl hover:bg-slate-700 flex items-center justify-center text-lg font-bold text-slate-200" title="Afastar (−)">−</button>
+        <div class="h-px bg-white/10 my-0.5"></div>
+        <button id="zoom-center-btn" class="w-9 h-9 rounded-xl hover:bg-slate-700 flex items-center justify-center text-sm text-slate-200" title="Centralizar seleção">⌖</button>
+      </div>
+
+      <!-- Minimap Preview (Desktop) -->
+      <div class="hidden lg:block glass-panel p-2 rounded-2xl shadow-2xl border border-white/10 overflow-hidden">
+        <div class="text-[9px] uppercase font-bold text-slate-400 mb-1 px-1 tracking-wider">Minimapa Espacial</div>
+        <canvas id="minimap-canvas" width="140" height="90" class="rounded-lg bg-slate-950/80 block"></canvas>
+      </div>
+    </div>
+  </main>
+
+  <!-- ========================================================================= -->
+  <!-- 3. ALTERNATIVE LIST VIEWPORT (T02) -->
+  <!-- ========================================================================= -->
+  <div id="list-view-container" class="hidden fixed inset-0 top-16 pb-20 overflow-y-auto z-20 bg-[#0B0F19]">
+    <!-- Populated by app.js -->
+  </div>
+
+  <!-- ========================================================================= -->
+  <!-- 4. BUBBLE DETAILS DRAWER (T03 / T03b) -->
+  <!-- ========================================================================= -->
+  <aside id="bubble-drawer" class="fixed top-16 right-0 bottom-0 w-full sm:w-[460px] glass-panel z-40 transform translate-x-full transition-transform duration-300 ease-out shadow-2xl flex flex-col border-l border-white/10" aria-label="Detalhes da Bolha">
+    <div id="drawer-content" class="h-full flex flex-col justify-between">
+      <!-- Dynamic Content loaded by app.js -->
+    </div>
+  </aside>
+
+  <!-- ========================================================================= -->
+  <!-- 5. GATE A DEMO CONTROLLER TOOLBAR (Moderator Session Bar) -->
+  <!-- ========================================================================= -->
+  <div class="fixed bottom-0 left-0 right-0 h-14 glass-panel z-50 px-4 flex items-center justify-between border-t border-white/10 text-xs">
+    <!-- Persona Switcher -->
+    <div class="flex items-center gap-2">
+      <span class="text-[10px] uppercase font-bold text-slate-400 tracking-wider hidden md:inline">Persona S0:</span>
+      <button onclick="setPersona('pf')" class="px-2.5 py-1 rounded-lg bg-slate-800 hover:bg-slate-700 border border-slate-700 text-slate-200 font-medium">
+        👤 Carlos (PF)
+      </button>
+      <button onclick="setPersona('pj')" class="px-2.5 py-1 rounded-lg bg-slate-800 hover:bg-slate-700 border border-slate-700 text-slate-200 font-medium">
+        🏢 TecnoLotes (PJ)
+      </button>
+      <button onclick="setPersona('organizer')" class="px-2.5 py-1 rounded-lg bg-slate-800 hover:bg-slate-700 border border-slate-700 text-slate-200 font-medium">
+        👥 Juliana (Organizadora)
+      </button>
+    </div>
+
+    <!-- Live Event Triggers -->
+    <div class="flex items-center gap-2">
+      <button onclick="triggerSimulateNewQuota()" class="px-3 py-1 rounded-lg bg-indigo-600/30 hover:bg-indigo-600/50 border border-indigo-500/40 text-indigo-300 font-semibold flex items-center gap-1.5 transition">
+        <span>⚡ Cota Entrando (Live)</span>
+      </button>
+      <button onclick="triggerSimulateExplosion()" class="px-3 py-1 rounded-lg bg-rose-600/30 hover:bg-rose-600/50 border border-rose-500/40 text-rose-300 font-semibold flex items-center gap-1.5 transition">
+        <span>💥 Simular Explosão</span>
+      </button>
+    </div>
+
+    <!-- Accessibility & Theme -->
+    <div class="hidden sm:flex items-center gap-2">
+      <button id="motion-toggle-btn" class="p-1.5 rounded-lg bg-slate-800 hover:bg-slate-700 text-slate-300" title="Alternar Redução de Movimento">
+        ♿ Movimento
+      </button>
+      <button id="theme-toggle-btn" class="p-1.5 rounded-lg bg-slate-800 hover:bg-slate-700 text-slate-300" title="Alternar Tema Claro/Escuro">
+        🌓 Tema
+      </button>
+    </div>
+  </div>
+
+  <!-- ========================================================================= -->
+  <!-- 6. MODAL SYSTEM OVERLAY (T10, T12, T12p, T17, T18, T20) -->
+  <!-- ========================================================================= -->
+  <div id="modal-overlay" class="hidden fixed inset-0 bg-black/70 backdrop-blur-sm z-50 flex items-center justify-center p-4">
+    <div id="modal-container" class="w-full max-w-xl glass-panel rounded-2xl shadow-2xl border border-white/10 overflow-hidden transform transition-all">
+      <!-- Populated dynamically by app.js -->
+    </div>
+  </div>
+
+  <!-- Global Feedback Toast Notification -->
+  <div id="global-toast" class="fixed top-20 left-1/2 transform -translate-x-1/2 translate-y-20 opacity-0 transition-all duration-300 glass-panel px-5 py-3 rounded-2xl shadow-2xl border border-blue-500/30 text-white text-xs font-semibold z-50 pointer-events-none flex items-center gap-2">
+    Notificação
+  </div>
+
+  <!-- Application Logic -->
+  <script src="app.js"></script>
+</body>
+</html>

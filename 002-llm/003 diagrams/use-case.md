@@ -1,5 +1,7 @@
 # Diagrama de Casos de Uso - Bolha Venda (Sales Bubble)
 
+> ⚠️ **Complementado (06/10/2026)** pela [Spec](../SPEC.md) §2 (papéis) e pelas [histórias de usuário](../002%20Docs/03-requisitos/historias-usuario.md). Desatualizado: "Empresa: Venda / Usuário: Compra" (PF também vende em C2C; PJ também compra); UC10 "Gerenciar estoque" está fora do escopo do R1.
+
 > 🎨 **Diagrama Interativo Archify**: [Visualizar Diagrama Interativo HTML (Archify)](file:///c:/Users/al_ja/OneDrive/Documents/work/Pessoal/IA/Vault/bolha-venda/002-llm/003%20diagrams/html/use-case.html)
 
 Este diagrama representa os principais Atores e seus respectivos Casos de Uso dentro do sistema Bolha Venda.

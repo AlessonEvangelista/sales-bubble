@@ -1,5 +1,7 @@
 # Stack Tecnológica - Bolha Venda (Sales Bubble)
 
+> ⚠️ **Parcialmente substituído (06/10/2026)** pelos [ADRs](05-arquitetura/adr/README.md) e pelo [guia de desenvolvimento](06-engenharia/guia-desenvolvimento.md). Desatualizado: isolamento `SERIALIZABLE` (ADR-0002 usa Read Committed + `UPDATE` condicional); alternativas FastAPI/Drizzle/React Flow/Jest descartadas (NestJS + Prisma + PixiJS + Vitest); runtime Node.js 24 LTS; nomes de tabelas canônicos em [modelo-dados.md](05-arquitetura/modelo-dados.md).
+
 Este documento descreve as tecnologias escolhidas para o desenvolvimento da plataforma Bolha Venda, justificando as escolhas com base nos requisitos funcionais e não-funcionais.
 
 ---

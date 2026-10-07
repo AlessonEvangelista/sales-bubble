@@ -1,5 +1,7 @@
 # Arquitetura do Sistema - Bolha Venda (Sales Bubble)
 
+> ⚠️ **Substituído (06/10/2026)** por [05-arquitetura/c4.md](05-arquitetura/c4.md), [ADRs](05-arquitetura/adr/README.md) e [máquinas de estado](05-arquitetura/maquina-estados.md). Desatualizado: Redlock/`SELECT FOR UPDATE` (agora `UPDATE` condicional — ADR-0002), `current_quotas` (agora `filled_quotas` + `reserved_quotas`), estados `NEAR_FULL`/`EXPIRING` (agora flags — ADR-0009).
+
 Este documento descreve a arquitetura lógica, os componentes do sistema, a infraestrutura e os fluxos de comunicação em tempo real da plataforma Bolha Venda.
 
 ---

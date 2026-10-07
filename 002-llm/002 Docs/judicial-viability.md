@@ -1,5 +1,7 @@
 # Análise de Viabilidade Jurídica e Regulatória - Bolha Venda
 
+> ⚠️ **Complementado (06/10/2026)** por [LGPD/RIPD](08-seguranca-compliance/lgpd-ripd.md), [matriz de cláusulas](08-seguranca-compliance/matriz-clausulas-termos.md) e pelo [relatório de validação do PRD](03-requisitos/validacao-prd.md) §3. Atenção: a afirmação de que a plataforma "não responde por vícios" depende de parecer jurídico (CDC × Marco Civil art. 19); CNPJ é exigido para qualquer ação de PJ, não só para criar bolha de venda.
+
 Este documento analisa os aspectos legais, regulatórios e contratuais aplicáveis ao modelo de negócios da plataforma Bolha Venda no ordenamento jurídico brasileiro.
 
 ---

@@ -1,5 +1,7 @@
 # Fluxo do Usuário (Use Flows) - Bolha Venda (Sales Bubble)
 
+> ⚠️ **Complementado (06/10/2026)** por [arquitetura de informação e fluxos](../002%20Docs/04-design/arquitetura-informacao-fluxos.md) e [personas e jornadas](../002%20Docs/02-discovery/personas-jornadas.md).
+
 > 🎨 **Diagrama Interativo Archify**: [Visualizar Diagrama Interativo HTML (Archify)](file:///c:/Users/al_ja/OneDrive/Documents/work/Pessoal/IA/Vault/bolha-venda/002-llm/003%20diagrams/html/use-flows.html)
 
 Este diagrama representa a jornada do usuário navegando no canvas até o encerramento da bolha e triagem.

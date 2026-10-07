@@ -1,5 +1,7 @@
 # Guia de Estilo e UI/UX (Style Guide) - Bolha Venda
 
+> ⚠️ **Complementado (06/10/2026)** pela [especificação de telas](04-design/especificacao-telas.md) e pelo [plano de acessibilidade](04-design/acessibilidade.md). Desatualizado: "Próxima da explosão" não é estado/cor de bolha, e sim flag sobreposta com ícone + texto; bolha de venda também pode ser criada por PF (C2C); fontes fixadas em Inter + JetBrains Mono; o gradiente de Compra com texto branco e a borda âmbar no tema claro precisam de ajuste para contraste AA.
+
 Este documento estabelece as diretrizes de design, paleta de cores, tipografia e identidade visual para a interface da plataforma Bolha Venda.
 
 ---
