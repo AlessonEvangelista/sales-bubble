@@ -1,0 +1,95 @@
+<!doctype html>
+<html lang="pt-BR" data-theme="dark">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+  <title>Bolha Venda — Protótipo Hi-Fi navegável</title>
+  <meta name="description" content="Protótipo de alta fidelidade do Bolha Venda para o Gate A (S0).">
+  <meta name="theme-color" content="#0B0F19">
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&family=JetBrains+Mono:wght@500;600;700&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="css/base.css">
+  <link rel="stylesheet" href="css/canvas.css">
+  <link rel="stylesheet" href="css/screens.css">
+</head>
+<body>
+  <a class="skip-link" href="#conteudo" data-action="skip-main">Pular para o conteúdo</a>
+
+  <div id="app">
+    <header id="topbar" class="topbar"></header>
+
+    <div id="offline-banner" class="banner banner--offline" hidden>
+      <span class="banner__icon" aria-hidden="true"></span>
+      Sem conexão. Os dados podem estar desatualizados.
+    </div>
+
+    <main id="conteudo" tabindex="-1">
+      <!-- Explorar: canvas (T01), lista (T02) e detalhe (T03) -->
+      <div id="view-explore" class="explore">
+        <section id="map" class="map" aria-labelledby="map-title" aria-describedby="map-help">
+          <h1 id="map-title" class="sr-only">Mapa de bolhas</h1>
+          <p id="map-help" class="sr-only">Use Tab para percorrer as bolhas. Setas levam à bolha vizinha, Shift mais setas move o mapa, mais e menos mudam o zoom, L abre a lista e interrogação mostra os atalhos.</p>
+          <a class="skip-link skip-link--inner" href="#/lista">Pular para a lista de bolhas</a>
+
+          <div id="map-surface" class="map__surface">
+            <div id="world" class="world">
+              <ul id="bubbles" class="world__bubbles" aria-label="Bolhas na área visível"></ul>
+              <div id="fx" class="world__fx" aria-hidden="true"></div>
+            </div>
+          </div>
+
+          <div id="map-legend" class="map-legend" aria-label="Legenda do mapa" role="group"></div>
+          <a class="btn btn--primary map-create" href="#/criar">Criar bolha</a>
+          <div id="map-state" class="map__state"></div>
+
+          <div class="map-tools" role="toolbar" aria-label="Controles do mapa" aria-orientation="vertical">
+            <button class="tool-btn" type="button" data-action="zoom-in" aria-label="Aproximar" title="Aproximar (+)"></button>
+            <output id="zoom-level" class="tool-zoom" aria-live="off">100%</output>
+            <button class="tool-btn" type="button" data-action="zoom-out" aria-label="Afastar" title="Afastar (−)"></button>
+            <span class="tool-sep" aria-hidden="true"></span>
+            <button class="tool-btn" type="button" data-action="zoom-center" aria-label="Centralizar e voltar ao zoom 100%" title="Centralizar (0)"></button>
+            <button class="tool-btn" type="button" data-action="open-help" aria-label="Atalhos de teclado" title="Atalhos (?)"></button>
+          </div>
+
+          <div class="minimap" aria-hidden="true">
+            <span class="minimap__label">Minimapa</span>
+            <canvas id="minimap" width="168" height="104"></canvas>
+          </div>
+        </section>
+
+        <section id="list-view" class="list-view" aria-labelledby="list-title" hidden></section>
+
+        <aside id="detail" class="detail" aria-labelledby="detail-title" hidden></aside>
+      </div>
+
+      <!-- Demais telas (T10, T05/T06, T17, T18, T20, tokens) -->
+      <div id="view-page" class="page-view" hidden></div>
+    </main>
+
+    <nav id="bottomnav" class="bottomnav" aria-label="Navegação principal"></nav>
+  </div>
+
+  <div id="moderator"></div>
+  <div id="dialogs"></div>
+  <div id="toasts" class="toasts" aria-hidden="true"></div>
+
+  <!-- Regiões de anúncio existem desde o carregamento (acessibilidade §2.4) -->
+  <div id="live-polite" class="sr-only" aria-live="polite" aria-atomic="true"></div>
+  <div id="live-alert" class="sr-only" role="alert" aria-atomic="true"></div>
+
+  <script src="js/util.js"></script>
+  <script src="js/data.js"></script>
+  <script src="js/canvas.js"></script>
+  <script src="js/detail.js"></script>
+  <script src="js/modals.js"></script>
+  <script src="js/screens/lista.js"></script>
+  <script src="js/screens/criar.js"></script>
+  <script src="js/screens/cadastro.js"></script>
+  <script src="js/screens/triagem-vendedor.js"></script>
+  <script src="js/screens/triagem-comprador.js"></script>
+  <script src="js/screens/score.js"></script>
+  <script src="js/screens/tokens.js"></script>
+  <script src="js/app.js"></script>
+</body>
+</html>

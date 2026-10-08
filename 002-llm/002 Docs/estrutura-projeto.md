@@ -1,5 +1,7 @@
 # Estrutura do Projeto - Bolha Venda (Sales Bubble)
 
+> ⚠️ **Parcialmente substituído (06/10/2026)** pelo [guia de desenvolvimento](06-engenharia/guia-desenvolvimento.md): o monorepo canônico inclui `apps/worker` e `packages/contracts`; backend é NestJS (não FastAPI); a documentação nova fica em subpastas numeradas de `002 Docs/` (ver [índice](README.md)).
+
 Este documento define a organização de pastas e arquivos do ecossistema do repositório Bolha Venda.
 
 ---

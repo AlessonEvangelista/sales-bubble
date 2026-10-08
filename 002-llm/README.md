@@ -4,7 +4,17 @@ Este diretório concentra a documentação de engenharia de software, modelos de
 
 ---
 
-## 🗂️ Estrutura de Documentos
+## ⭐ Comece aqui (atualizado em 06/10/2026)
+
+- [PRD v2.1](PRD.MD) — requisitos do produto, validados e corrigidos.
+- [Spec do Produto v1.1](SPEC.md) — comportamento detalhado de cada funcionalidade.
+- [Índice completo da documentação](002%20Docs/README.md) — cerca de 40 documentos organizados pelas fases do Manual de Processo (negócio, discovery, requisitos, design, arquitetura/ADRs, engenharia, qualidade, segurança/LGPD, operação) e as pendências do Gate A.
+
+Os documentos listados abaixo são a versão anterior. Cada um tem um aviso no topo dizendo o que está desatualizado.
+
+---
+
+## 🗂️ Estrutura de Documentos (versão anterior)
 
 ### 📂 `002 Docs/` - Documentações Principais
 - [mvp.md](file:///c:/Users/al_ja/OneDrive/Documents/work/Pessoal/IA/Vault/bolha-venda/002-llm/002%20Docs/mvp.md): Escopo, KPIs e funcionalidades do Produto Mínimo Viável.

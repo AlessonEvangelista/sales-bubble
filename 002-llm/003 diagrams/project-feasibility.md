@@ -1,5 +1,7 @@
 # Project Feasibility Document
 
+> ⚠️ **Template não preenchido.** A viabilidade está em [business-case.md](../002%20Docs/01-negocio/business-case.md) (negócio), no [plano de projeto](../002%20Docs/planing-project.md) (riscos) e em [judicial-viability.md](../002%20Docs/judicial-viability.md) (jurídico).
+
 ## 1. Introduction
 Este documento visa validar a viabilidade do projeto em questão, considerando aspectos técnicos, financeiros e de mercado.
 

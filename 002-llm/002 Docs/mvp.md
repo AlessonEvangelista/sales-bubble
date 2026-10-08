@@ -1,5 +1,7 @@
 # Produto Mínimo Viável (MVP) - Bolha Venda (Sales Bubble)
 
+> ⚠️ **Substituído (06/10/2026)** pela [Spec do Produto](../SPEC.md) e pelo [PRD v2.1](../PRD.MD). Desatualizado: gateway fora do escopo (agora dentro — ADR-0003); "avaliação recíproca" (score por eventos objetivos — ADR-0007); bolha de compra C2C (lances só de PJ).
+
 ## 1. Visão Geral do MVP
 O **Bolha Venda (Sales Bubble)** é uma plataforma inovadora de venda e compra coletiva interativa com suporte a múltiplos modelos de transação (**B2B, B2C, C2B, C2C**). 
 

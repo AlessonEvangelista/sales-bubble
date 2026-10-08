@@ -1,5 +1,7 @@
 # Diagrama de Sequência - Bolha Venda (Sales Bubble)
 
+> ⚠️ **Substituído (06/10/2026)** pelos diagramas de [eventos-dominio.md](../002%20Docs/05-arquitetura/eventos-dominio.md) e pelo [PRD v2.1 §8.2](../PRD.MD). Desatualizado: Redlock, `current_quotas`, rotas sem `/api/v1`, `/triages/{id}/confirm`.
+
 > 🎨 **Diagrama Interativo Archify**: [Visualizar Diagrama Interativo HTML (Archify)](file:///c:/Users/al_ja/OneDrive/Documents/work/Pessoal/IA/Vault/bolha-venda/002-llm/003%20diagrams/html/sequence.html)
 
 Este diagrama ilustra a sequência de chamadas entre o Usuário/Empresa, Frontend Canvas, Servidor Backend, Redis Timer e Banco de Dados.
