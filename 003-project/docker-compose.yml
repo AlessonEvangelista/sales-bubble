@@ -1,0 +1,74 @@
+# Infraestrutura local de desenvolvimento do Bolha Venda (BV-102 / EN-022).
+# Fonte: guia de desenvolvimento §3.2 (002-llm/002 Docs/06-engenharia/guia-desenvolvimento.md).
+#
+#   npm run db:up      # docker compose up -d --wait (espera os healthchecks)
+#   npm run db:down    # docker compose down (os volumes nomeados são preservados)
+#   docker compose down -v                 # apaga também os dados (pgdata, redisdata)
+#   docker compose --profile obs up -d     # inclui o stack de observabilidade (otel-lgtm)
+#
+# Portas do host: 5432 (Postgres) e 6379 (Redis) por padrão. Se já estiverem ocupadas por outro
+# projeto, defina POSTGRES_HOST_PORT / REDIS_HOST_PORT no .env e ajuste DATABASE_URL / REDIS_URL.
+#
+# Credenciais abaixo são SOMENTE de desenvolvimento local e coincidem com o .env.example.
+name: bolha-venda
+
+services:
+  postgres:
+    image: postgres:16-alpine
+    environment:
+      POSTGRES_USER: bolha
+      POSTGRES_PASSWORD: bolha
+      POSTGRES_DB: bolha_dev
+    ports: ['${POSTGRES_HOST_PORT:-5432}:5432']
+    command:
+      [
+        'postgres',
+        '-c',
+        'shared_preload_libraries=pg_stat_statements',
+        '-c',
+        'log_min_duration_statement=200',
+      ]
+    volumes: [pgdata:/var/lib/postgresql/data]
+    healthcheck:
+      test: ['CMD-SHELL', 'pg_isready -U bolha -d bolha_dev']
+      interval: 5s
+      timeout: 3s
+      retries: 10
+      start_period: 10s
+
+  redis:
+    image: redis:7-alpine
+    # noeviction é obrigatório para o BullMQ (chaves de fila não podem ser despejadas);
+    # AOF everysec replica a configuração de produção (ADR-0011, R3).
+    command:
+      [
+        'redis-server',
+        '--appendonly',
+        'yes',
+        '--appendfsync',
+        'everysec',
+        '--maxmemory-policy',
+        'noeviction',
+      ]
+    ports: ['${REDIS_HOST_PORT:-6379}:6379']
+    volumes: [redisdata:/data]
+    healthcheck:
+      test: ['CMD', 'redis-cli', 'ping']
+      interval: 5s
+      timeout: 3s
+      retries: 10
+
+  # Caixa de e-mail falsa: SMTP em :1025, UI em http://localhost:8025.
+  mailpit:
+    image: axllent/mailpit:latest
+    ports: ['1025:1025', '8025:8025']
+
+  # Opcional: docker compose --profile obs up -d  (Grafana em http://localhost:3030)
+  otel-lgtm:
+    image: grafana/otel-lgtm:latest
+    profiles: ['obs']
+    ports: ['3030:3000', '4317:4317', '4318:4318']
+
+volumes:
+  pgdata:
+  redisdata:

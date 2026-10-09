@@ -20,10 +20,15 @@
     "dev": "tsc -p tsconfig.build.json --watch --preserveWatchOutput",
     "typecheck": "tsc --noEmit",
     "lint": "eslint .",
-    "test": "vitest run"
+    "test": "vitest run",
+    "db:seed": "node dist/seed/cli.js"
   },
   "dependencies": {
     "@bolha/core-domain": "*",
-    "@bolha/contracts": "*"
+    "@bolha/contracts": "*",
+    "pg": "^8.23.1"
+  },
+  "devDependencies": {
+    "@types/pg": "^8.23.1"
   }
 }

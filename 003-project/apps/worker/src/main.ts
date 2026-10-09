@@ -1,5 +1,6 @@
 import 'reflect-metadata';
 import { NestFactory } from '@nestjs/core';
+import { loadDotEnv, parseWorkerEnv } from './config/env.js';
 import { WorkerModule } from './worker.module.js';
 
 /**
@@ -8,6 +9,9 @@ import { WorkerModule } from './worker.module.js';
  * (ADR-0010, ADR-0011) entram nas histórias correspondentes.
  */
 async function bootstrap(): Promise<void> {
+  // Valida o ambiente antes de subir (o env tipado passa a ser injetado com as filas BullMQ).
+  loadDotEnv();
+  parseWorkerEnv();
   const app = await NestFactory.createApplicationContext(WorkerModule);
   app.enableShutdownHooks();
   // Enquanto não há filas BullMQ mantendo o processo vivo, segura o event loop.
