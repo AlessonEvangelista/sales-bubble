@@ -1,0 +1,26 @@
+{
+  "name": "@bolha/web",
+  "version": "0.0.0",
+  "private": true,
+  "description": "Front-end Next.js (App Router) + PixiJS — canvas, PWA e telas de triagem.",
+  "type": "module",
+  "scripts": {
+    "build": "next build",
+    "dev": "next dev --port 3000",
+    "start": "next start --port 3000",
+    "typecheck": "next typegen && tsc --noEmit",
+    "lint": "eslint .",
+    "test": "vitest run"
+  },
+  "dependencies": {
+    "@bolha/contracts": "*",
+    "@bolha/ui-components": "*",
+    "next": "^16.4.0",
+    "react": "^19.3.0",
+    "react-dom": "^19.3.0"
+  },
+  "devDependencies": {
+    "@types/react": "^19.3.0",
+    "@types/react-dom": "^19.3.0"
+  }
+}

@@ -1,2 +1,16 @@
 .env
 **/.env
+.env.*
+!.env.example
+
+# Node / monorepo (003-project)
+node_modules/
+dist/
+.turbo/
+.next/
+out/
+coverage/
+*.tsbuildinfo
+next-env.d.ts
+npm-debug.log*
+.secrets/
