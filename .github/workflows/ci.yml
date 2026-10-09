@@ -63,6 +63,8 @@ jobs:
         run: npm run lint
       - name: Fronteiras de arquitetura
         run: node tools/ci/run-if-present.mjs lint:boundaries BV-101
+      - name: Testes das regras de fronteira
+        run: node tools/ci/run-if-present.mjs test:boundaries BV-101
       - name: Tipos (tsc --noEmit)
         run: npm run typecheck
       - name: Schema Prisma

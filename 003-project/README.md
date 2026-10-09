@@ -65,7 +65,7 @@ O workflow [`.github/workflows/ci.yml`](../.github/workflows/ci.yml) (raiz do re
 
 | Job | Gates | Reproduzir localmente |
 | :--- | :--- | :--- |
-| Qualidade | commitlint (PR), Prettier, ESLint, fronteiras (BV-101), `tsc`, Prisma/squawk (BV-107) | `npm run format:check && npm run lint && npm run typecheck` |
+| Qualidade | commitlint (PR), Prettier, ESLint, fronteiras `lint:boundaries` + `test:boundaries` (BV-101), `tsc`, Prisma/squawk (BV-107) | `npm run format:check && npm run lint && npm run typecheck` |
 | Testes unitários | Vitest + cobertura; piso do `core-domain` 90% linhas / 85% ramos | `npm run test:coverage` |
 | Integração | Postgres 16 + Redis 7 (services), `test:int`, `test:concurrency`, `test:contract` | pendente (BV-102/BV-107/BV-111) |
 | Build | `turbo run build` | `npm run build` |
