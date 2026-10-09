@@ -30,7 +30,7 @@ O monorepo usa **npm workspaces + Turborepo**, Node.js **24 LTS** e TypeScript e
 
 Regra de dependência (guia §2.2): `web → contracts, ui-components`; `api`/`worker → core-domain, database, contracts`;
 `database → core-domain, contracts`; `core-domain → contracts`; `ui-components → contracts`; `contracts` não importa
-ninguém. A verificação automática dessas fronteiras entra no **BV-101**.
+ninguém. Essas fronteiras são verificadas automaticamente (BV-101 — ver [Fronteiras entre pacotes](#-fronteiras-entre-pacotes-bv-101)).
 
 ---
 
@@ -49,16 +49,51 @@ npm run dev          # web :3000, api :3001 (GET /api/v1/health/live), worker
 | :--- | :--- |
 | `npm run build` | `turbo run build` — `tsc` nos pacotes/api/worker, `next build` no web. |
 | `npm run dev` | Sobe web, api e worker em modo watch. |
-| `npm run lint` | ESLint em todos os workspaces. |
+| `npm run lint` | ESLint em todos os workspaces + regras de fronteira (`lint:boundaries`). |
+| `npm run lint:boundaries` | dependency-cruiser: grafo de dependências entre pacotes (falha em violação). |
+| `npm run test:boundaries` | Testa as próprias regras de fronteira contra fixtures com violações conhecidas. |
 | `npm run typecheck` | `tsc --noEmit` em todos os workspaces. |
 | `npm run test` | Testes unitários (Vitest). |
 | `npm run format` / `format:check` | Prettier. |
 
 Filtrar por workspace: `npx turbo run test --filter=@bolha/core-domain`.
 
+---
+
+## 🧱 Fronteiras entre pacotes (BV-101)
+
+Ferramenta: **dependency-cruiser** (`.dependency-cruiser.cjs`), que lê o grafo real de imports
+(incluindo `import type`) e reprova o PR em qualquer violação (ADR-0001 item 5, pipeline-ci-cd §2).
+Complementa o ESLint, que no `core-domain` proíbe `process`, `fetch`, timers, `Date.now()` e
+`new Date()` sem argumentos (usar a porta `Clock`).
+
+| Regra | O que bloqueia |
+| :--- | :--- |
+| `no-circular` | Ciclos de dependência. |
+| `packages-not-to-apps` / `app-not-to-other-app` | Pacote importando app; app importando outro app. |
+| `no-relative-cross-workspace` | `../../packages/x/src/...` entre workspaces (use `@bolha/x`). |
+| `core-domain-no-outward-deps` | `core-domain` importando qualquer coisa além de si, `@bolha/contracts` e libs puras permitidas (hoje: `uuid`). |
+| `core-domain-contracts-type-only` | Import de **valor** de `@bolha/contracts` no `core-domain` (use `import type`). |
+| `core-domain-context-public-api` | Um contexto do `core-domain` usando arquivos internos de outro (só `index.ts` ou `shared/`). |
+| `contracts-only-zod` | `contracts` importando algo além de `zod`. |
+| `database-allowed-deps` / `database-no-cross-context-repositories` | `database` → `ui-components`; adapter de um contexto chamando repositório de outro (permitidos `shared/` e `platform/`). |
+| `ui-components-only-contracts` | `ui-components` → `core-domain`/`database`. |
+| `web-not-to-server-packages` | `web` → `core-domain`/`database`. |
+| `server-apps-not-to-ui-components` | `api`/`worker` → `ui-components`. |
+| `nest-module-public-api` | Módulo Nest usando arquivos internos de outro módulo (só `*.module.ts` ou `index.ts`). |
+
+```bash
+npm run lint:boundaries   # verifica a árvore atual
+npm run test:boundaries   # garante que cada regra detecta a violação correspondente (tools/boundaries/fixtures)
+```
+
+O `tsconfig.depcruise.json` (usado só pelo dependency-cruiser) resolve `@bolha/*` para o `src/` de cada
+pacote, então a verificação não depende de build prévio e distingue `import type` de import de valor.
+Para ampliar as libs puras do `core-domain`, edite `CORE_DOMAIN_ALLOWED_NPM` no `.dependency-cruiser.cjs`
+(exige revisão do tech lead).
+
 ### Ainda não incluído (tarefas seguintes da S1)
 
-- **BV-101** — regras de fronteira entre pacotes (`eslint-plugin-boundaries` / dependency-cruiser).
 - **BV-102** — `docker-compose.yml` (Postgres 16, Redis 7, Mailpit), `.env.example`, seeds e comandos `db:*`.
 - **BV-103** — CI (`.github/workflows/ci.yml`) com os gates obrigatórios.
 - **BV-107** — schema Prisma e migrations; **BV-111** — conteúdo do pacote `contracts`.

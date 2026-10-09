@@ -14,7 +14,9 @@
   "scripts": {
     "dev": "turbo run dev",
     "build": "turbo run build",
-    "lint": "turbo run lint",
+    "lint": "turbo run lint && npm run lint:boundaries",
+    "lint:boundaries": "depcruise \"{apps,packages}/*/src\" --config .dependency-cruiser.cjs",
+    "test:boundaries": "vitest run tools/boundaries",
     "typecheck": "turbo run typecheck",
     "test": "turbo run test",
     "format": "prettier --write .",
@@ -23,6 +25,7 @@
   "devDependencies": {
     "@eslint/js": "^10.0.1",
     "@types/node": "^24.0.0",
+    "dependency-cruiser": "^18.5.0",
     "eslint": "^10.12.0",
     "eslint-config-prettier": "^10.1.8",
     "prettier": "^3.9.9",

@@ -1,0 +1,9 @@
+{
+  "$schema": "https://json.schemastore.org/tsconfig",
+  "//": "Usado só pelo dependency-cruiser (BV-101): resolve @bolha/* para o src/ dos pacotes, com ou sem build, preservando a distinção entre `import type` e import de valor.",
+  "compilerOptions": {
+    "paths": {
+      "@bolha/*": ["./packages/*/src/index.ts", "./apps/*/src/index.ts"]
+    }
+  }
+}
