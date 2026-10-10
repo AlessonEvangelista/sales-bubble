@@ -155,7 +155,31 @@ script, o passo emite o aviso **"Gate pendente"** e passa; quando a tarefa criar
 o gate passa a bloquear sem editar o workflow. Exceções de licença ficam em `tools/ci/check-licenses.mjs`;
 de vulnerabilidade, em `osv-scanner.toml` (e no registro `.security/exceptions.yaml`).
 
+## 📜 Contratos da API e eventos (BV-111)
+
+`packages/contracts` (`@bolha/contracts`, runtime só com `zod`) é a fonte da verdade do contrato
+([api-rest.md](../002-llm/002%20Docs/05-arquitetura/api-rest.md),
+[api-websocket.md](../002-llm/002%20Docs/05-arquitetura/api-websocket.md),
+[eventos-dominio.md](../002-llm/002%20Docs/05-arquitetura/eventos-dominio.md)):
+
+| Módulo | Conteúdo |
+| :--- | :--- |
+| `src/common.ts` | UUID, datas UTC, centavos, enums de domínio, paginação por cursor |
+| `src/errors.ts` | RFC 9457 (`ProblemDetails`, `createProblem`) + catálogo completo de códigos (status, título, mensagens normativas da Spec) |
+| `src/api/*.ts` | DTOs Zod de identidade (F1), bolhas/canvas (F2–F4), cotas/pagamentos (F5), lances (F8), notificações; `ROUTES` (registro das rotas) |
+| `src/events/domain-events.ts` | Envelope do outbox + 27 eventos de domínio versionados (`buildDomainEvent`, `parseDomainEvent`) |
+| `src/events/ws-events.ts` | Envelope `{event, v, id, ts, data}`, eventos servidor→cliente e cliente→servidor, tiling de rooms |
+| `openapi.yaml` | OpenAPI 3.1 **gerado** dos schemas (não editar à mão) |
+
+- Requisições usam objetos estritos (allowlist, sem mass assignment); respostas toleram campos novos (*tolerant reader*).
+- Anti-enumeração (SEC-08/SEC-22): cadastro, reenvio de confirmação e recuperação de senha têm resposta `202`
+  constante e literal (`GENERIC_REGISTER_RESPONSE`, `GENERIC_ACCEPTED_RESPONSE`), coberta por teste.
+- `npm run openapi` — regenera o `openapi.yaml` (commite o resultado).
+- `npm run test:contract` — gate do CI: `openapi.yaml` em dia com os schemas, testes do pacote e **oasdiff**
+  (`tools/contract/check-breaking.mjs`) contra `origin/main`, falhando em breaking change
+  (binário `oasdiff` no PATH ou Docker `tufin/oasdiff`). Quebra intencional = `/api/v2` (api-rest §1.1).
+
 ### Ainda não incluído (tarefas seguintes da S1)
 
 - **BV-107** — schema Prisma e migrations (`db:migrate`, `db:migrate:create`, `db:deploy`, `db:reset`) e a
-  gravação real dos dados do seed; **BV-111** — conteúdo do pacote `contracts`.
+  gravação real dos dados do seed.

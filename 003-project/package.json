@@ -26,7 +26,9 @@
     "db:down": "docker compose down",
     "db:logs": "docker compose logs -f postgres redis",
     "db:seed": "turbo run build --filter=@bolha/database --output-logs=errors-only && npm run db:seed --workspace @bolha/database --",
-    "keys:dev": "node tools/keys-dev.mjs"
+    "keys:dev": "node tools/keys-dev.mjs",
+    "openapi": "turbo run build --filter=@bolha/contracts --output-logs=errors-only && npm run openapi --workspace @bolha/contracts",
+    "test:contract": "turbo run build --filter=@bolha/contracts --output-logs=errors-only && npm run openapi:check --workspace @bolha/contracts && vitest run --root packages/contracts && node tools/contract/check-breaking.mjs"
   },
   "devDependencies": {
     "@eslint/js": "^10.0.1",
