@@ -16,15 +16,22 @@
     "build": "turbo run build",
     "lint": "turbo run lint && npm run lint:boundaries",
     "lint:boundaries": "depcruise \"{apps,packages}/*/src\" --config .dependency-cruiser.cjs",
+    "lint:migrations": "squawk \"packages/database/prisma/migrations/**/*.sql\"",
     "test:boundaries": "vitest run tools/boundaries",
     "typecheck": "turbo run typecheck",
     "test": "turbo run test",
     "test:coverage": "turbo run test -- --coverage",
+    "test:int": "turbo run db:generate --output-logs=errors-only && npm run test:int --workspace @bolha/database",
     "format": "prettier --write .",
     "format:check": "prettier --check .",
     "db:up": "docker compose up -d --wait",
     "db:down": "docker compose down",
     "db:logs": "docker compose logs -f postgres redis",
+    "db:generate": "turbo run db:generate",
+    "db:deploy": "npm run db:deploy --workspace @bolha/database",
+    "db:migrate": "npm run db:migrate --workspace @bolha/database --",
+    "db:status": "npm run db:status --workspace @bolha/database",
+    "db:drift": "npm run db:drift --workspace @bolha/database",
     "db:seed": "turbo run build --filter=@bolha/database --output-logs=errors-only && npm run db:seed --workspace @bolha/database --",
     "keys:dev": "node tools/keys-dev.mjs"
   },
@@ -36,9 +43,14 @@
     "eslint": "^10.12.0",
     "eslint-config-prettier": "^10.1.8",
     "prettier": "^3.9.9",
+    "squawk-cli": "^2.68.0",
     "turbo": "^2.11.7",
     "typescript": "~6.0.3",
     "typescript-eslint": "^8.71.1",
     "vitest": "^5.0.3"
+  },
+  "overrides": {
+    "deepmerge-ts": "^8.0.2",
+    "mysql2": "^3.24.5"
   }
 }

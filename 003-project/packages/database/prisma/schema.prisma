@@ -1,0 +1,298 @@
+// Schema Prisma do Bolha Venda — BV-107 (EN-027).
+//
+// Espelha o DDL de 002-llm/002 Docs/05-arquitetura/modelo-dados.md §3 para os contextos
+// identity, bubble (bolhas, degraus e cotas) e platform (outbox, eventos processados e
+// idempotência). Regras que o Prisma não modela ficam em SQL cru nas migrations
+// (prisma/migrations/*/migration.sql) e são verificadas no teste de integração:
+//   - CHECKs (enumerações em `text` + CHECK, invariantes de contagem, prazos, preços);
+//   - índices parciais (ex.: quotas_pf_one_per_bubble_uk — ADR-0002), GiST do canvas e
+//     índices com expressão;
+//   - trigger `outbox_notify` (pg_notify no commit — ADR-0010).
+//
+// Convenções (modelo-dados §1): tabelas snake_case no plural (@@map), campos camelCase no
+// client (@map), PK uuid v7 gerado na aplicação, dinheiro em BigInt (centavos), timestamptz.
+// Enumerações são `String` aqui de propósito: o domínio valida os valores e o banco tem o CHECK.
+
+generator client {
+  provider               = "prisma-client"
+  output                 = "../src/shared/generated/prisma"
+  moduleFormat           = "esm"
+  importFileExtension    = "js"
+  generatedFileExtension = "ts"
+  runtime                = "nodejs"
+}
+
+// URL de conexão em prisma.config.ts (Prisma 7: o schema não carrega mais a URL).
+datasource db {
+  provider = "postgresql"
+}
+
+// ============================================================================
+// identity
+// ============================================================================
+
+/// Conta PF ou PJ. PII cifrada em coluna (ADR-0012, envelope encryption): `*_enc` =
+/// 0x01‖nonce‖ciphertext‖tag (AES-256-GCM com a DEK da conta, AAD = tabela:coluna:id);
+/// `pii_data_key` = DEK da conta cifrada pela KEK (o blob carrega o id da KEK); `*_hash` =
+/// HMAC-SHA256 com pepper para busca e unicidade (indexados).
+model Account {
+  id                     String    @id @db.Uuid
+  /// PF | PJ (CHECK)
+  accountType            String    @map("account_type")
+  pseudonym              String    @unique(map: "accounts_pseudonym_uk")
+  emailEnc               Bytes     @map("email_enc")
+  emailHash              Bytes     @unique(map: "accounts_email_hash_uk") @map("email_hash")
+  documentEnc            Bytes     @map("document_enc")
+  documentHash           Bytes     @unique(map: "accounts_document_hash_uk") @map("document_hash")
+  nameEnc                Bytes     @map("name_enc")
+  phoneEnc               Bytes?    @map("phone_enc")
+  /// argon2id; NULL se só OAuth
+  passwordHash           String?   @map("password_hash")
+  /// GOOGLE (CHECK)
+  oauthProvider          String?   @map("oauth_provider")
+  oauthSubjectHash       Bytes?    @map("oauth_subject_hash")
+  /// DEK por conta cifrada pela KEK (formato definido em @bolha/database/pii — BV-109)
+  piiDataKey             Bytes     @map("pii_data_key")
+  /// versão do pepper do HMAC de busca (`*_hash`); a KEK é identificada dentro de pii_data_key
+  piiKeyVersion          Int       @default(1) @map("pii_key_version") @db.SmallInt
+  pixBlockedUntil        DateTime? @map("pix_blocked_until") @db.Timestamptz(6)
+  /// PENDING_VERIFICATION | ACTIVE | SUSPENDED | DELETED (CHECK)
+  status                 String    @default("PENDING_VERIFICATION")
+  /// USER | MODERATOR | ADMIN (CHECK)
+  role                   String    @default("USER")
+  score                  Int       @default(500) @db.SmallInt
+  scoreModelVersion      String    @default("v1") @map("score_model_version")
+  scoreUpdatedAt         DateTime? @map("score_updated_at") @db.Timestamptz(6)
+  gatewayRecipientId     String?   @map("gateway_recipient_id")
+  /// PENDING | APPROVED | REJECTED (CHECK)
+  gatewayRecipientStatus String?   @map("gateway_recipient_status")
+  createdAt              DateTime  @default(now()) @map("created_at") @db.Timestamptz(6)
+  updatedAt              DateTime  @default(now()) @map("updated_at") @db.Timestamptz(6)
+  deletedAt              DateTime? @map("deleted_at") @db.Timestamptz(6)
+
+  companyProfile  CompanyProfile?
+  consents        Consent[]
+  refreshTokens   RefreshToken[]
+  bubbles         Bubble[]
+  quotas          Quota[]
+  idempotencyKeys IdempotencyKey[]
+
+  @@map("accounts")
+}
+
+/// Dados da PJ verificados no provedor de CNPJ (ADR-0008).
+model CompanyProfile {
+  accountId              String    @id @map("account_id") @db.Uuid
+  legalName              String?   @map("legal_name")
+  tradeName              String?   @map("trade_name")
+  cnaePrincipal          String?   @map("cnae_principal")
+  /// ATIVA | SUSPENSA | INAPTA | BAIXADA | NULA | DESCONHECIDA (CHECK)
+  cnpjStatus             String    @default("DESCONHECIDA") @map("cnpj_status")
+  /// BRASILAPI | RECEITAWS (CHECK)
+  cnpjProvider           String?   @map("cnpj_provider")
+  cnpjCheckedAt          DateTime? @map("cnpj_checked_at") @db.Timestamptz(6)
+  cnpjNextCheckAt        DateTime? @map("cnpj_next_check_at") @db.Timestamptz(6)
+  verificationAttempts   Int       @default(0) @map("verification_attempts") @db.SmallInt
+  verificationRetryUntil DateTime? @map("verification_retry_until") @db.Timestamptz(6)
+  nextRetryAt            DateTime? @map("next_retry_at") @db.Timestamptz(6)
+  updatedAt              DateTime  @default(now()) @map("updated_at") @db.Timestamptz(6)
+
+  account Account @relation(fields: [accountId], references: [id], onDelete: Restrict, onUpdate: NoAction, map: "company_profiles_account_id_fkey")
+
+  @@index([cnpjNextCheckAt], map: "company_profiles_next_check_ix")
+  @@map("company_profiles")
+}
+
+/// Aceites de termos/política (versões registradas — Spec F1).
+model Consent {
+  id              String    @id @db.Uuid
+  accountId       String    @map("account_id") @db.Uuid
+  /// TERMS_OF_USE | PRIVACY_POLICY | MARKETING_EMAIL (CHECK)
+  purpose         String
+  documentVersion String    @map("document_version")
+  grantedAt       DateTime  @default(now()) @map("granted_at") @db.Timestamptz(6)
+  revokedAt       DateTime? @map("revoked_at") @db.Timestamptz(6)
+  ipHash          Bytes?    @map("ip_hash")
+  userAgent       String?   @map("user_agent")
+
+  account Account @relation(fields: [accountId], references: [id], onDelete: Restrict, onUpdate: NoAction, map: "consents_account_id_fkey")
+
+  @@map("consents")
+}
+
+/// Refresh token rotativo (30 dias), guardado só como hash.
+model RefreshToken {
+  id         String    @id @db.Uuid
+  accountId  String    @map("account_id") @db.Uuid
+  familyId   String    @map("family_id") @db.Uuid
+  tokenHash  Bytes     @unique(map: "refresh_tokens_token_hash_key") @map("token_hash")
+  issuedAt   DateTime  @default(now()) @map("issued_at") @db.Timestamptz(6)
+  expiresAt  DateTime  @map("expires_at") @db.Timestamptz(6)
+  rotatedAt  DateTime? @map("rotated_at") @db.Timestamptz(6)
+  replacedBy String?   @map("replaced_by") @db.Uuid
+  revokedAt  DateTime? @map("revoked_at") @db.Timestamptz(6)
+  ipHash     Bytes?    @map("ip_hash")
+  userAgent  String?   @map("user_agent")
+
+  account     Account        @relation(fields: [accountId], references: [id], onDelete: Restrict, onUpdate: NoAction, map: "refresh_tokens_account_id_fkey")
+  replacement RefreshToken?  @relation("RefreshTokenRotation", fields: [replacedBy], references: [id], onDelete: Restrict, onUpdate: NoAction, map: "refresh_tokens_replaced_by_fkey")
+  replaces    RefreshToken[] @relation("RefreshTokenRotation")
+
+  @@index([familyId], map: "refresh_tokens_family_ix")
+  @@index([expiresAt], map: "refresh_tokens_expires_ix")
+  @@map("refresh_tokens")
+}
+
+// ============================================================================
+// bubble
+// ============================================================================
+
+/// Bolha de venda (SALE) ou de compra (PURCHASE). Contadores protegidos por CHECK
+/// (`filled_quotas + reserved_quotas <= max_quotas`) e alterados só pelo UPDATE condicional
+/// do ADR-0002. `version` = concorrência otimista e ordem dos eventos de tempo real.
+model Bubble {
+  id                   String    @id @db.Uuid
+  /// SALE | PURCHASE (CHECK)
+  type                 String
+  creatorId            String    @map("creator_id") @db.Uuid
+  title                String
+  description          String
+  category             String
+  imageUrl             String?   @map("image_url")
+  imageUrls            String[]  @default([]) @map("image_urls")
+  /// DRAFT | ACTIVE | EXPIRED_SUCCESS | EXPIRED_FAILED | IN_TRIAGE | COMPLETED | CANCELLED (CHECK)
+  status               String    @default("DRAFT")
+  currency             String    @default("BRL") @db.Char(3)
+  /// centavos; = degrau 0 (SALE) ou preço máximo (PURCHASE)
+  initialPrice         BigInt    @map("initial_price")
+  targetPrice          BigInt    @map("target_price")
+  finalUnitPrice       BigInt?   @map("final_unit_price")
+  minQuotas            Int       @map("min_quotas")
+  maxQuotas            Int       @map("max_quotas")
+  /// só cotas ACTIVE (pagas/autorizadas)
+  filledQuotas         Int       @default(0) @map("filled_quotas")
+  /// reservas Pix (RESERVED): ocupam capacidade, não contam para meta nem preço
+  reservedQuotas       Int       @default(0) @map("reserved_quotas")
+  /// % de max_quotas que uma PJ pode ocupar (ADR-0006)
+  maxPjShare           Int       @default(50) @map("max_pj_share") @db.SmallInt
+  shippingDays         Int       @default(7) @map("shipping_days") @db.SmallInt
+  /// duração escolhida no DRAFT (60 min a 5 dias). O DDL dos docs usa `interval`; aqui são
+  /// minutos inteiros porque o Prisma não suporta `interval` (ver migration do contexto bubble).
+  durationMinutes      Int       @map("duration_minutes")
+  startsAt             DateTime? @map("starts_at") @db.Timestamptz(6)
+  expiresAt            DateTime? @map("expires_at") @db.Timestamptz(6)
+  explodedAt           DateTime? @map("exploded_at") @db.Timestamptz(6)
+  /// TIME | FULL (CHECK)
+  explodeReason        String?   @map("explode_reason")
+  bidSelectionDeadline DateTime? @map("bid_selection_deadline") @db.Timestamptz(6)
+  /// FK para bids entra com o contexto bidding
+  selectedBidId        String?   @map("selected_bid_id") @db.Uuid
+  cancelReason         String?   @map("cancel_reason")
+  closedAt             DateTime? @map("closed_at") @db.Timestamptz(6)
+  canvasX              Float?    @map("canvas_x")
+  canvasY              Float?    @map("canvas_y")
+  onCanvas             Boolean   @default(false) @map("on_canvas")
+  version              Int       @default(0)
+  createdAt            DateTime  @default(now()) @map("created_at") @db.Timestamptz(6)
+  updatedAt            DateTime  @default(now()) @map("updated_at") @db.Timestamptz(6)
+
+  creator    Account     @relation(fields: [creatorId], references: [id], onDelete: Restrict, onUpdate: NoAction, map: "bubbles_creator_id_fkey")
+  priceTiers PriceTier[]
+  quotas     Quota[]
+
+  @@index([creatorId, createdAt(sort: Desc)], map: "bubbles_creator_ix")
+  @@map("bubbles")
+}
+
+/// Degraus de preço da bolha de venda (ADR-0004). Imutáveis após publicar.
+model PriceTier {
+  id              String @id @db.Uuid
+  bubbleId        String @map("bubble_id") @db.Uuid
+  minFilledQuotas Int    @map("min_filled_quotas")
+  unitPrice       BigInt @map("unit_price")
+
+  bubble Bubble @relation(fields: [bubbleId], references: [id], onDelete: Cascade, onUpdate: NoAction, map: "price_tiers_bubble_id_fkey")
+
+  @@unique([bubbleId, minFilledQuotas], map: "price_tiers_uk")
+  @@map("price_tiers")
+}
+
+/// Cota de um participante. PF: no máximo 1 RESERVED/ACTIVE por bolha (índice único parcial
+/// quotas_pf_one_per_bubble_uk — ADR-0002). `payment_id` ganha FK quando o contexto payment entrar.
+model Quota {
+  id             String    @id @db.Uuid
+  bubbleId       String    @map("bubble_id") @db.Uuid
+  accountId      String    @map("account_id") @db.Uuid
+  /// PF | PJ (CHECK) — desnormalizado para o índice parcial
+  accountType    String    @map("account_type")
+  quantity       Int
+  /// RESERVED | ACTIVE | RELEASED | CANCELLED (CHECK)
+  status         String
+  isCreatorQuota Boolean   @default(false) @map("is_creator_quota")
+  paymentId      String    @unique(map: "quotas_payment_uk") @map("payment_id") @db.Uuid
+  reservedUntil  DateTime? @map("reserved_until") @db.Timestamptz(6)
+  acquiredAt     DateTime? @map("acquired_at") @db.Timestamptz(6)
+  releasedAt     DateTime? @map("released_at") @db.Timestamptz(6)
+  cancelReason   String?   @map("cancel_reason")
+  cancelledAt    DateTime? @map("cancelled_at") @db.Timestamptz(6)
+  createdAt      DateTime  @default(now()) @map("created_at") @db.Timestamptz(6)
+
+  bubble  Bubble  @relation(fields: [bubbleId], references: [id], onDelete: Restrict, onUpdate: NoAction, map: "quotas_bubble_id_fkey")
+  account Account @relation(fields: [accountId], references: [id], onDelete: Restrict, onUpdate: NoAction, map: "quotas_account_id_fkey")
+
+  @@index([accountId, createdAt(sort: Desc)], map: "quotas_account_ix")
+  @@map("quotas")
+}
+
+// ============================================================================
+// platform (outbox transacional — ADR-0010)
+// ============================================================================
+
+/// Evento de domínio gravado na mesma transação da mudança de estado. O trigger
+/// outbox_notify_trg faz pg_notify('outbox_new') — entregue só no COMMIT.
+model OutboxEvent {
+  id            String    @id @db.Uuid
+  aggregateType String    @map("aggregate_type")
+  aggregateId   String    @map("aggregate_id") @db.Uuid
+  eventType     String    @map("event_type")
+  eventVersion  Int       @default(1) @map("event_version") @db.SmallInt
+  payload       Json
+  traceParent   String?   @map("trace_parent")
+  occurredAt    DateTime  @default(now()) @map("occurred_at") @db.Timestamptz(6)
+  publishedAt   DateTime? @map("published_at") @db.Timestamptz(6)
+  attempts      Int       @default(0) @db.SmallInt
+  lastError     String?   @map("last_error")
+
+  @@index([aggregateType, aggregateId, id], map: "outbox_aggregate_ix")
+  @@map("outbox_events")
+}
+
+/// Idempotência dos consumidores do outbox (entrega pelo menos uma vez).
+model ProcessedEvent {
+  consumer    String
+  eventId     String   @map("event_id") @db.Uuid
+  processedAt DateTime @default(now()) @map("processed_at") @db.Timestamptz(6)
+
+  @@id([consumer, eventId], map: "processed_events_pkey")
+  @@map("processed_events")
+}
+
+/// Persistência do header Idempotency-Key (24 h).
+model IdempotencyKey {
+  accountId      String   @map("account_id") @db.Uuid
+  key            String
+  route          String
+  requestHash    Bytes    @map("request_hash")
+  /// IN_PROGRESS | COMPLETED (CHECK)
+  status         String   @default("IN_PROGRESS")
+  responseStatus Int?     @map("response_status") @db.SmallInt
+  responseBody   Json?    @map("response_body")
+  createdAt      DateTime @default(now()) @map("created_at") @db.Timestamptz(6)
+  expiresAt      DateTime @default(dbgenerated("(now() + '24:00:00'::interval)")) @map("expires_at") @db.Timestamptz(6)
+
+  account Account @relation(fields: [accountId], references: [id], onDelete: Restrict, onUpdate: NoAction, map: "idempotency_keys_account_id_fkey")
+
+  @@id([accountId, key], map: "idempotency_keys_pkey")
+  @@index([expiresAt], map: "idempotency_keys_expires_ix")
+  @@map("idempotency_keys")
+}

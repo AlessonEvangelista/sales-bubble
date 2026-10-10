@@ -1,0 +1,15 @@
+# Lint de migrations SQL (squawk) — BV-107. Política em pipeline-ci-cd.md §4: bloquear operações
+# que travam ou quebram a versão anterior (DROP/RENAME, CREATE INDEX sem CONCURRENTLY em tabela
+# grande, NOT NULL sem default...). Uso: `npm run lint:migrations`.
+pg_version = "16.0"
+# `prisma migrate deploy` roda cada migration numa transação.
+assume_in_transaction = true
+excluded_rules = [
+  # IF NOT EXISTS não se aplica: a migration é transacional e registrada em _prisma_migrations.
+  "prefer-robust-stmts",
+  # Tipos inteiros seguem o modelo de dados (smallint/int dimensionados por domínio).
+  "prefer-bigint-over-int",
+  "prefer-bigint-over-smallint",
+  # bubbles.currency char(3) = código ISO 4217 (modelo-dados §3.2).
+  "ban-char-field",
+]

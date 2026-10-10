@@ -136,6 +136,8 @@ jobs:
       - run: npm ci
       - name: Migrations no banco efêmero
         run: node tools/ci/run-if-present.mjs db:deploy BV-102/BV-107
+      - name: Drift entre schema Prisma e migrations
+        run: node tools/ci/run-if-present.mjs db:drift BV-107
       - name: Testes de integração (Vitest + Supertest + Testcontainers)
         run: node tools/ci/run-if-present.mjs test:int BV-102/BV-107
       - name: Concorrência da última cota (100 req → 1×201, 99×409)
