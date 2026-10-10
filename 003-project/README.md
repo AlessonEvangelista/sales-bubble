@@ -89,10 +89,12 @@ que passar a consumir. Segredos de staging/produção vivem no secret manager, n
 | `npm run test:boundaries` | Testa as próprias regras de fronteira contra fixtures com violações conhecidas. |
 | `npm run typecheck` | `tsc --noEmit` em todos os workspaces. |
 | `npm run test` | Testes unitários (Vitest). |
+| `npm run test:int` | Testes de integração (`*.int.test.ts`; precisam do Redis/Postgres do `db:up`). |
 | `npm run format` / `format:check` | Prettier. |
 | `npm run db:up` / `db:down` | `docker compose up -d --wait` / `docker compose down` (preserva os volumes). |
 | `npm run db:logs` | Logs do Postgres e do Redis. |
 | `npm run db:seed` | Seed de desenvolvimento (`-- --small` → 20 bolhas). Até o BV-107 só valida a conexão. |
+| `npm run flags -- list` | Kill switches em runtime (BV-113): `set <flag> on\|off --by <quem> [--reason ...]`, `clear <flag> --by <quem>`, `audit`. Efeito em ≤ 10 s. |
 | `npm run keys:dev` | Gera chaves de dev em `.secrets/`: par RSA do JWT RS256 e chaves de PII (`pii-keys.env`). |
 
 Filtrar por workspace: `npx turbo run test --filter=@bolha/core-domain`.

@@ -8,3 +8,6 @@
 
 /** Prefixo versionado da API REST (guia de desenvolvimento §3.1). */
 export const API_BASE_PATH = '/api/v1' as const;
+
+// Feature flags e kill switches (BV-113 / EN-033).
+export * from './flags.js';

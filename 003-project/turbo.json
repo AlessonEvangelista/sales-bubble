@@ -16,6 +16,11 @@
       "dependsOn": ["^build"],
       "outputs": []
     },
+    "test:int": {
+      "dependsOn": ["^build"],
+      "cache": false,
+      "env": ["REDIS_URL", "DATABASE_URL"]
+    },
     "dev": {
       "dependsOn": ["^build"],
       "cache": false,
