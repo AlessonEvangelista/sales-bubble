@@ -1,6 +1,8 @@
 import 'reflect-metadata';
 import { NestFactory } from '@nestjs/core';
 import { loadDotEnv, parseWorkerEnv } from './config/env.js';
+import { WORKER_SECRET_NAMES } from './config/secret-names.js';
+import { resolveSecrets } from './config/secrets.js';
 import { WorkerModule } from './worker.module.js';
 
 /**
@@ -11,7 +13,8 @@ import { WorkerModule } from './worker.module.js';
 async function bootstrap(): Promise<void> {
   // Valida o ambiente antes de subir (o env tipado passa a ser injetado com as filas BullMQ).
   loadDotEnv();
-  parseWorkerEnv();
+  // Segredos: em produção podem vir do secret manager (BV-110, gestao-segredos.md).
+  parseWorkerEnv(await resolveSecrets(WORKER_SECRET_NAMES));
   const app = await NestFactory.createApplicationContext(WorkerModule);
   app.enableShutdownHooks();
   // Enquanto não há filas BullMQ mantendo o processo vivo, segura o event loop.

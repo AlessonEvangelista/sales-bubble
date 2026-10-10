@@ -1,0 +1,53 @@
+# Verificação manual da autenticação OIDC na nuvem (BV-110 / SEC-10).
+#
+# Rode depois de configurar o lado da nuvem (gestao-segredos.md §5 — item HITL): Actions →
+# "Verificar autenticação na nuvem" → Run workflow → escolha o environment. Não faz deploy,
+# não lê segredos de aplicação: só prova que o job obtém uma credencial efêmera via OIDC e
+# mostra a identidade obtida. Os workflows de deploy (BV-105/BV-106) usam a mesma action.
+name: Verificar autenticação na nuvem
+
+on:
+  workflow_dispatch:
+    inputs:
+      environment:
+        description: GitHub Environment (define o `sub` do token OIDC)
+        type: choice
+        options: [staging, production]
+        default: staging
+
+permissions:
+  contents: read
+
+jobs:
+  check:
+    name: OIDC → ${{ inputs.environment }}
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    environment: ${{ inputs.environment }}
+    permissions:
+      contents: read
+      id-token: write # emite o token OIDC do job; nenhum segredo de longa duração
+    env:
+      PLATFORM: ${{ vars.DEPLOY_PLATFORM }}
+      GCP_WIF_PROVIDER: ${{ vars.GCP_WIF_PROVIDER }}
+      GCP_DEPLOY_SA: ${{ vars.GCP_DEPLOY_SA }}
+      GCP_PROJECT_ID: ${{ vars.GCP_PROJECT_ID }}
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          persist-credentials: false
+      - id: auth
+        uses: ./.github/actions/oidc-cloud-auth
+        with:
+          railway-token: ${{ secrets.RAILWAY_TOKEN }}
+      - name: Identidade obtida (Cloud Run)
+        if: steps.auth.outputs.platform == 'cloudrun'
+        env:
+          REGION: ${{ vars.CLOUD_RUN_REGION }}
+        run: |
+          gcloud auth list --filter=status:ACTIVE --format='value(account)'
+          gcloud run services list --region "$REGION" --format='value(metadata.name)' || \
+            echo "::warning::A conta autenticou, mas não lista serviços do Cloud Run (permissão ou região)."
+      - name: Identidade obtida (Railway)
+        if: steps.auth.outputs.platform == 'railway'
+        run: echo "Project token do Railway carregado em RAILWAY_TOKEN (mascarado) para os passos seguintes."

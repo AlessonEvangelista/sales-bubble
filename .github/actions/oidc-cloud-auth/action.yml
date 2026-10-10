@@ -1,0 +1,173 @@
+# Autenticação do GitHub Actions na nuvem SEM segredo de longa duração (BV-110 / EN-030 / SEC-10).
+#
+# Consumida pelos workflows de deploy (BV-105 deploy-staging, BV-106 deploy-production).
+# Política e passo a passo do lado da nuvem: 002-llm/002 Docs/08-seguranca-compliance/gestao-segredos.md §5.
+#
+# platform: cloudrun (ou gcp) — OIDC do GitHub → Workload Identity Federation → conta de serviço de
+#   deploy, credencial efêmera por job. railway — project token do GitHub Environment (o Railway
+#   não aceita federação OIDC; exceção documentada em gestao-segredos.md §5.3).
+#
+# O job que usa esta action PRECISA declarar:
+#   permissions: { contents: read, id-token: write }
+#   environment: staging | production    (o `sub` do token OIDC carrega o environment, e o
+#                                          provider do GCP só aceita os environments permitidos)
+#
+# Configuração: cada input, se vazio, cai para a variável de ambiente do job com o mesmo papel
+# (composite actions não leem `vars`/`secrets`; quem chama repassa). Ordem: input → env do job.
+#   platform                       → env PLATFORM ou DEPLOY_PLATFORM   (vars.DEPLOY_PLATFORM)
+#   gcp-workload-identity-provider → env GCP_WIF_PROVIDER              (vars.GCP_WIF_PROVIDER)
+#   gcp-service-account            → env GCP_DEPLOY_SA                 (vars.GCP_DEPLOY_SA, por environment)
+#   gcp-project-id                 → env GCP_PROJECT_ID                (vars.GCP_PROJECT_ID, por environment)
+#   gcp-artifact-registry          → env GCP_ARTIFACT_REGISTRY         (opcional; docker login)
+#   railway-token                  → só input (secrets.RAILWAY_TOKEN do GitHub Environment)
+#
+# Exemplo (job de deploy):
+#   deploy:
+#     environment: production
+#     permissions: { contents: read, id-token: write }
+#     env:
+#       PLATFORM: ${{ needs.prepare.outputs.platform }}
+#       GCP_WIF_PROVIDER: ${{ vars.GCP_WIF_PROVIDER }}
+#       GCP_DEPLOY_SA: ${{ vars.GCP_DEPLOY_SA }}
+#       GCP_PROJECT_ID: ${{ vars.GCP_PROJECT_ID }}
+#     steps:
+#       - uses: actions/checkout@v7
+#       - uses: ./.github/actions/oidc-cloud-auth
+#         with:
+#           railway-token: ${{ secrets.RAILWAY_TOKEN }}   # só usado com platform=railway
+name: Autenticação na nuvem (OIDC)
+description: >-
+  Autentica o job na nuvem de deploy. Cloud Run via OIDC + Workload Identity Federation (credencial
+  efêmera, por job); Railway via project token do GitHub Environment.
+
+inputs:
+  platform:
+    description: "cloudrun | gcp | railway. Vazio = env PLATFORM/DEPLOY_PLATFORM do job."
+    required: false
+    default: ""
+  gcp-workload-identity-provider:
+    description: "projects/<NUM>/locations/global/workloadIdentityPools/<POOL>/providers/<PROVIDER>. Vazio = env GCP_WIF_PROVIDER."
+    required: false
+    default: ""
+  gcp-service-account:
+    description: "Conta de serviço de deploy (deploy-<env>@<projeto>.iam.gserviceaccount.com). Vazio = env GCP_DEPLOY_SA."
+    required: false
+    default: ""
+  gcp-project-id:
+    description: "Projeto GCP do ambiente. Vazio = env GCP_PROJECT_ID."
+    required: false
+    default: ""
+  gcp-artifact-registry:
+    description: "Host do Artifact Registry para docker login (ex.: southamerica-east1-docker.pkg.dev). Vazio = env GCP_ARTIFACT_REGISTRY; ambos vazios = não configura o docker."
+    required: false
+    default: ""
+  setup-gcloud:
+    description: "Instala o gcloud CLI (necessário para gcloud run deploy)."
+    required: false
+    default: "true"
+  railway-token:
+    description: "Project token do Railway (secrets.RAILWAY_TOKEN do GitHub Environment). Só com platform=railway."
+    required: false
+    default: ""
+
+outputs:
+  platform:
+    description: "Plataforma autenticada, normalizada: cloudrun | railway."
+    value: ${{ steps.check.outputs.platform }}
+
+runs:
+  using: composite
+  steps:
+    - name: Resolver e validar a configuração (sem expor valores)
+      id: check
+      shell: bash
+      env:
+        IN_PLATFORM: ${{ inputs.platform }}
+        IN_WIF: ${{ inputs.gcp-workload-identity-provider }}
+        IN_SA: ${{ inputs.gcp-service-account }}
+        IN_PROJECT: ${{ inputs.gcp-project-id }}
+        IN_REGISTRY: ${{ inputs.gcp-artifact-registry }}
+        IN_RAILWAY_TOKEN: ${{ inputs.railway-token }}
+      run: |
+        platform="${IN_PLATFORM:-${PLATFORM:-${DEPLOY_PLATFORM:-}}}"
+        wif="${IN_WIF:-${GCP_WIF_PROVIDER:-}}"
+        sa="${IN_SA:-${GCP_DEPLOY_SA:-}}"
+        project="${IN_PROJECT:-${GCP_PROJECT_ID:-}}"
+        registry="${IN_REGISTRY:-${GCP_ARTIFACT_REGISTRY:-}}"
+        missing=""
+        case "$platform" in
+          cloudrun|gcp)
+            platform=cloudrun
+            if [ -z "${ACTIONS_ID_TOKEN_REQUEST_URL:-}" ]; then
+              echo "::error title=OIDC indisponível::o job precisa de 'permissions: id-token: write'."
+              exit 1
+            fi
+            [ -n "$wif" ] || missing="$missing GCP_WIF_PROVIDER"
+            [ -n "$sa" ] || missing="$missing GCP_DEPLOY_SA"
+            [ -n "$project" ] || missing="$missing GCP_PROJECT_ID"
+            ;;
+          railway)
+            [ -n "$IN_RAILWAY_TOKEN" ] || missing="$missing railway-token(secrets.RAILWAY_TOKEN do environment)"
+            ;;
+          "")
+            echo "::error title=Plataforma não informada::passe 'platform' ou defina env PLATFORM/DEPLOY_PLATFORM (cloudrun|railway). Escolha pendente: BV-104."
+            exit 1
+            ;;
+          *)
+            echo "::error title=Plataforma inválida::'$platform' (use cloudrun ou railway)."
+            exit 1
+            ;;
+        esac
+        if [ -n "$missing" ]; then
+          echo "::error title=Nuvem não configurada::faltam:$missing. Configuração do lado da nuvem pendente (gestao-segredos.md §5)."
+          exit 1
+        fi
+        {
+          echo "platform=$platform"
+          echo "wif=$wif"
+          echo "sa=$sa"
+          echo "project=$project"
+          echo "registry=$registry"
+        } >> "$GITHUB_OUTPUT"
+
+    # ---------------------------------------------------------------- Cloud Run (GCP)
+    - name: GCP — OIDC → Workload Identity Federation
+      if: steps.check.outputs.platform == 'cloudrun'
+      # v3.0.0 fixado por SHA (cadeia de suprimentos: a action recebe o token OIDC do job).
+      uses: google-github-actions/auth@7c6bc770dae815cd3e89ee6cdf493a5fab2cc093
+      with:
+        workload_identity_provider: ${{ steps.check.outputs.wif }}
+        service_account: ${{ steps.check.outputs.sa }}
+        project_id: ${{ steps.check.outputs.project }}
+        # Credencial efêmera (1 h por padrão); nada é gravado como segredo.
+        create_credentials_file: true
+        export_environment_variables: true
+
+    - name: GCP — gcloud CLI
+      if: steps.check.outputs.platform == 'cloudrun' && inputs.setup-gcloud == 'true'
+      # v3.0.1 fixado por SHA.
+      uses: google-github-actions/setup-gcloud@aa5489c8933f4cc7a4f7d45035b3b1440c9c10db
+      with:
+        project_id: ${{ steps.check.outputs.project }}
+
+    - name: GCP — docker login no Artifact Registry
+      if: steps.check.outputs.platform == 'cloudrun' && steps.check.outputs.registry != '' && inputs.setup-gcloud == 'true'
+      shell: bash
+      env:
+        REGISTRY_HOST: ${{ steps.check.outputs.registry }}
+      run: gcloud auth configure-docker "$REGISTRY_HOST" --quiet
+
+    # ---------------------------------------------------------------- Railway
+    - name: Railway — project token do environment
+      if: steps.check.outputs.platform == 'railway'
+      shell: bash
+      env:
+        RAILWAY_TOKEN_INPUT: ${{ inputs.railway-token }}
+      run: |
+        echo "::add-mask::$RAILWAY_TOKEN_INPUT"
+        # A CLI do Railway lê RAILWAY_TOKEN (project token). Disponível só aos passos seguintes deste job.
+        {
+          echo "RAILWAY_TOKEN<<__RAILWAY_EOF__"
+          echo "$RAILWAY_TOKEN_INPUT"
+          echo "__RAILWAY_EOF__"
+        } >> "$GITHUB_ENV"
