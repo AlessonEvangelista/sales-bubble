@@ -1,0 +1,28 @@
+{
+  "name": "@bolha/api",
+  "version": "0.0.0",
+  "private": true,
+  "description": "API NestJS — REST /api/v1, gateway Socket.io e webhooks (ADR-0001).",
+  "type": "module",
+  "scripts": {
+    "build": "tsc -p tsconfig.build.json",
+    "dev": "nest start --watch",
+    "start": "node dist/main.js",
+    "typecheck": "tsc --noEmit",
+    "lint": "eslint .",
+    "test": "vitest run"
+  },
+  "dependencies": {
+    "@bolha/contracts": "*",
+    "@bolha/core-domain": "*",
+    "@bolha/database": "*",
+    "@nestjs/common": "^12.1.2",
+    "@nestjs/core": "^12.1.2",
+    "reflect-metadata": "^0.2.2",
+    "rxjs": "^7.8.2",
+    "@nestjs/platform-express": "^12.1.2"
+  },
+  "devDependencies": {
+    "@nestjs/cli": "^12.0.8"
+  }
+}

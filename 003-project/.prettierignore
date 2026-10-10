@@ -1,0 +1,9 @@
+node_modules
+dist
+.next
+.turbo
+coverage
+package-lock.json
+prototipacao-gemini
+*.md
+next-env.d.ts
