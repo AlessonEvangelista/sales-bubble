@@ -177,6 +177,12 @@ jobs:
     permissions:
       contents: read
       id-token: write
+    # Composite actions não leem vars/secrets: a action OIDC (BV-110) lê estes valores do env do job.
+    env:
+      PLATFORM: ${{ needs.prepare.outputs.platform }}
+      GCP_WIF_PROVIDER: ${{ vars.GCP_WIF_PROVIDER }}
+      GCP_DEPLOY_SA: ${{ vars.GCP_DEPLOY_SA }}
+      GCP_PROJECT_ID: ${{ vars.GCP_PROJECT_ID }}
     steps:
       - uses: actions/checkout@v7
         with:
@@ -184,6 +190,8 @@ jobs:
       - name: Autenticar na nuvem (OIDC, BV-110)
         if: hashFiles('.github/actions/oidc-cloud-auth/action.yml') != ''
         uses: ./.github/actions/oidc-cloud-auth
+        with:
+          railway-token: ${{ secrets.RAILWAY_TOKEN }} # só usado com platform=railway
       - name: OIDC pendente
         if: hashFiles('.github/actions/oidc-cloud-auth/action.yml') == ''
         run: |
@@ -232,6 +240,12 @@ jobs:
     permissions:
       contents: read
       id-token: write
+    # Composite actions não leem vars/secrets: a action OIDC (BV-110) lê estes valores do env do job.
+    env:
+      PLATFORM: ${{ needs.prepare.outputs.platform }}
+      GCP_WIF_PROVIDER: ${{ vars.GCP_WIF_PROVIDER }}
+      GCP_DEPLOY_SA: ${{ vars.GCP_DEPLOY_SA }}
+      GCP_PROJECT_ID: ${{ vars.GCP_PROJECT_ID }}
     steps:
       - uses: actions/checkout@v7
         with:
@@ -248,6 +262,8 @@ jobs:
       - name: Autenticar na nuvem (OIDC, BV-110)
         if: hashFiles('.github/actions/oidc-cloud-auth/action.yml') != ''
         uses: ./.github/actions/oidc-cloud-auth
+        with:
+          railway-token: ${{ secrets.RAILWAY_TOKEN }} # só usado com platform=railway
       - name: OIDC pendente
         if: hashFiles('.github/actions/oidc-cloud-auth/action.yml') == ''
         run: |
@@ -286,6 +302,9 @@ jobs:
       id-token: write
     env:
       PLATFORM: ${{ needs.prepare.outputs.platform }}
+      GCP_WIF_PROVIDER: ${{ vars.GCP_WIF_PROVIDER }}
+      GCP_DEPLOY_SA: ${{ vars.GCP_DEPLOY_SA }}
+      GCP_PROJECT_ID: ${{ vars.GCP_PROJECT_ID }}
       VERSION: ${{ needs.prepare.outputs.version }}
       API_IMAGE: ${{ needs.image.outputs.api }}
       WORKER_IMAGE: ${{ needs.image.outputs.worker }}
@@ -303,6 +322,8 @@ jobs:
       - name: Autenticar na nuvem (OIDC, BV-110)
         if: hashFiles('.github/actions/oidc-cloud-auth/action.yml') != ''
         uses: ./.github/actions/oidc-cloud-auth
+        with:
+          railway-token: ${{ secrets.RAILWAY_TOKEN }} # só usado com platform=railway
       - name: OIDC pendente
         if: hashFiles('.github/actions/oidc-cloud-auth/action.yml') == ''
         run: |
