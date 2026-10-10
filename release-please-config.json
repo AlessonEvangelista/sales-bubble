@@ -1,0 +1,30 @@
+{
+  "$schema": "https://raw.githubusercontent.com/googleapis/release-please/main/schemas/config.json",
+  "release-type": "node",
+  "include-component-in-tag": false,
+  "include-v-in-tag": true,
+  "bump-minor-pre-major": true,
+  "bump-patch-for-minor-pre-major": false,
+  "pull-request-title-pattern": "chore${scope}: release ${version}",
+  "pull-request-header": "PR de release gerado pelo release-please (BV-106). O PO revisa os destaques do CHANGELOG antes do merge; o Tech Lead faz o merge (pipeline-ci-cd.md §7 e §9). O merge cria a tag `vX.Y.Z` e a GitHub Release, que disparam `deploy-production.yml` (aprovação manual no environment `production`).",
+  "changelog-sections": [
+    { "type": "feat", "section": "Funcionalidades" },
+    { "type": "fix", "section": "Correções" },
+    { "type": "perf", "section": "Desempenho" },
+    { "type": "revert", "section": "Reversões" },
+    { "type": "docs", "section": "Documentação", "hidden": true },
+    { "type": "refactor", "section": "Refatoração", "hidden": true },
+    { "type": "test", "section": "Testes", "hidden": true },
+    { "type": "build", "section": "Build", "hidden": true },
+    { "type": "ci", "section": "CI/CD", "hidden": true },
+    { "type": "style", "section": "Estilo", "hidden": true },
+    { "type": "chore", "section": "Manutenção", "hidden": true }
+  ],
+  "packages": {
+    "003-project": {
+      "package-name": "bolha-venda",
+      "component": "bolha-venda",
+      "changelog-path": "CHANGELOG.md"
+    }
+  }
+}
