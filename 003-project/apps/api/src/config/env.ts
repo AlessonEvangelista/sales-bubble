@@ -1,5 +1,6 @@
 import { existsSync } from 'node:fs';
 import { resolve } from 'node:path';
+import { parseFlagDefaults } from '@bolha/contracts';
 import { z } from 'zod';
 
 /**
@@ -17,6 +18,23 @@ export const apiEnvSchema = z.object({
   API_PORT: z.coerce.number().int().min(1).max(65535).default(3001),
   DATABASE_URL: z.url({ protocol: /^postgres(ql)?$/ }),
   REDIS_URL: z.url({ protocol: /^rediss?$/ }),
+  // Feature flags (BV-113): defaults por ambiente ("chave:true,chave:false") e TTL do cache
+  // em memória (plano de release §3: efeito em ≤ 10 s, por isso o teto de 10 000 ms).
+  FLAGS_DEFAULTS: z
+    .string()
+    .optional()
+    .refine(
+      (raw) => {
+        try {
+          parseFlagDefaults(raw);
+          return true;
+        } catch {
+          return false;
+        }
+      },
+      { message: 'FLAGS_DEFAULTS inválido' },
+    ),
+  FLAGS_CACHE_TTL_MS: z.coerce.number().int().min(100).max(10_000).default(10_000),
 });
 
 export type ApiEnv = z.infer<typeof apiEnvSchema>;

@@ -21,11 +21,14 @@
     "typecheck": "tsc --noEmit",
     "lint": "eslint .",
     "test": "vitest run",
-    "db:seed": "node dist/seed/cli.js"
+    "test:int": "vitest run --config vitest.int.config.ts",
+    "db:seed": "node dist/seed/cli.js",
+    "flags": "node dist/platform/feature-flags/cli.js"
   },
   "dependencies": {
     "@bolha/core-domain": "*",
     "@bolha/contracts": "*",
+    "ioredis": "^6.0.0",
     "pg": "^8.23.1"
   },
   "devDependencies": {
