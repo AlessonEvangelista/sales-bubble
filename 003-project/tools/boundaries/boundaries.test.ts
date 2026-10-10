@@ -139,6 +139,7 @@ describe('regras de fronteira entre pacotes (dependency-cruiser)', () => {
     expect(has('web-not-to-server-packages', page, '@bolha/database')).toBe(true);
     expect(has('app-not-to-other-app', page, '@bolha/api')).toBe(true);
     expect(has('no-relative-cross-workspace', page, 'packages/contracts')).toBe(true);
+    expect(has('web-observability-browser-only', page, 'observability/node')).toBe(true);
   });
 
   it('api não importa ui-components e módulos Nest se falam pela fachada', () => {

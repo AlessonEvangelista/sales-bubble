@@ -1,0 +1,17 @@
+# Exceções de segurança/licença aceitas temporariamente (pipeline-ci-cd.md §2).
+# Cada entrada tem dono e data de expiração; exceção vencida volta a bloquear.
+# Aprovação: Tech Lead (pipeline-ci-cd.md, tabela de responsabilidades).
+exceptions:
+  - id: LIC-0001
+    type: license
+    package: sentry@0.45.0
+    license: FSL-1.1-Apache-2.0
+    introduced_by: BV-108 (dependência transitiva de @sentry/node 11 via @sentry/bundler-plugins)
+    reason: >-
+      Sentry CLI (source-available, vira Apache-2.0 após 2 anos). Usado só para upload de
+      source maps/release; não é executado nem distribuído pela aplicação em runtime. Todo SDK
+      Node oficial do Sentry 11 o traz como dependência. O web usa @sentry/browser (MIT) e não
+      depende dele.
+    owner: Tech Lead
+    status: pendente de aprovação no PR da BV-108
+    expires: 2027-01-10
