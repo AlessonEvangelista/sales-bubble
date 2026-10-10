@@ -144,7 +144,7 @@ O workflow [`.github/workflows/ci.yml`](../.github/workflows/ci.yml) (raiz do re
 | Testes unitários | Vitest + cobertura; piso do `core-domain` 90% linhas / 85% ramos | `npm run test:coverage` |
 | Integração | Postgres 16 + Redis 7 (services), `test:int`, `test:concurrency`, `test:contract` | pendente (BV-102/BV-107/BV-111) |
 | Build | `turbo run build` | `npm run build` |
-| Imagem | build Docker + Trivy de api/worker | pendente (Dockerfiles no BV-105) |
+| Imagem | build Docker + Trivy de api/worker | `docker build -f apps/api/Dockerfile .` (ver seção BV-105) |
 | Segurança | gitleaks, `npm audit --omit=dev --audit-level=high`, OSV-Scanner, licenças | `npm audit --omit=dev --audit-level=high && node tools/ci/check-licenses.mjs` |
 | SAST | CodeQL `security-extended` | — |
 | E2E | Playwright + axe sobre docker compose | pendente (Playwright e compose/BV-102) |
@@ -154,6 +154,55 @@ Gates cujo ferramental ainda não existe rodam via `tools/ci/run-if-present.mjs 
 script, o passo emite o aviso **"Gate pendente"** e passa; quando a tarefa criar o script (ex.: `lint:boundaries`),
 o gate passa a bloquear sem editar o workflow. Exceções de licença ficam em `tools/ci/check-licenses.mjs`;
 de vulnerabilidade, em `osv-scanner.toml` (e no registro `.security/exceptions.yaml`).
+
+## 🚀 Imagens e CD de staging (BV-105)
+
+**Imagens** — `apps/api/Dockerfile` e `apps/worker/Dockerfile` (contexto `003-project/`, `.dockerignore` na raiz):
+multi-stage com `turbo prune` (só o app e os pacotes `@bolha/*` de que depende), `npm ci` com lockfile podado,
+build, `npm prune --omit=dev` e runtime em `node:24-alpine` fixado por digest, **sem npm/corepack**, executando como
+usuário `node` (não-root) com os arquivos da aplicação pertencentes ao root (somente leitura). Nenhum segredo entra na
+imagem: `.env`, `.secrets/`, `*.pem` ficam fora do contexto e as variáveis chegam em runtime. `HEALTHCHECK` da api usa
+`/api/v1/health/live` (liveness; readiness da plataforma em `/api/v1/health/ready`); o do worker só confirma o processo.
+
+```bash
+docker build -f apps/api/Dockerfile    -t bolha-api:local .
+docker build -f apps/worker/Dockerfile -t bolha-worker:local .
+# api contra o compose (Postgres/Redis publicados no host)
+docker run --rm -p 3001:3001 --add-host=host.docker.internal:host-gateway \
+  -e DATABASE_URL=postgresql://bolha:bolha@host.docker.internal:5432/bolha_dev \
+  -e REDIS_URL=redis://host.docker.internal:6379 bolha-api:local
+curl http://localhost:3001/api/v1/health/ready   # {"status":"ok","db":"up","redis":"up"}
+```
+
+**CD** — [`.github/workflows/deploy-staging.yml`](../.github/workflows/deploy-staging.yml), disparado quando o CI
+termina verde em push para `main`/`develop` (ou manualmente). Sequência
+([pipeline-ci-cd.md §1/§4/§5](../002-llm/002%20Docs/06-engenharia/pipeline-ci-cd.md)):
+
+1. build local de api/worker → **Trivy** (CVE crítica/alta corrigível bloqueia) → push no GHCR como
+   `ghcr.io/<owner>/bolha-<app>:sha-<7>` com SBOM (SPDX) e proveniência BuildKit + atestado SLSA (Sigstore);
+2. **migration** (`tools/deploy/run-migrations.sh staging` → `npm run db:deploy`, script do BV-107; sem ele, "Gate
+   pendente") com `lock_timeout=5s`/`statement_timeout=60s`, antes de qualquer revisão nova;
+3. **deploy de api/worker por digest** (`tools/deploy/deploy.sh staging <app> <imagem@sha256>`): Cloud Run
+   (serviço + worker pool) ou Railway (API GraphQL);
+4. **web na Vercel** (`vercel build` + `deploy --prebuilt`, alias opcional de staging);
+5. **smoke** em `$STAGING_API_URL/api/v1/health/ready`.
+
+Credencial de nuvem pela composite action `.github/actions/oidc-cloud-auth` (BV-110): OIDC/WIF no GCP, project token
+do environment no Railway. Configuração no GitHub (environment **staging**); tudo vazio ⇒ o passo é **pulado com aviso**:
+
+| Nome | Tipo | Uso |
+| :--- | :--- | :--- |
+| `STAGING_PLATFORM` | var | `cloudrun` \| `railway` (BV-104). Vazio ⇒ migration e deploy de api/worker pulados |
+| `GCP_WIF_PROVIDER`, `GCP_DEPLOY_SA`, `GCP_PROJECT_ID`, `GCP_REGION` | var | Cloud Run (OIDC + região) |
+| `STAGING_IMAGE_MIRROR` | var | Cloud Run não lê do GHCR: host do repositório remoto do Artifact Registry que espelha `ghcr.io` |
+| `STAGING_DB_DIRECT_URL_SECRET` | var | nome do segredo no Secret Manager (padrão `bolha-staging-database-direct-url`) |
+| `RAILWAY_TOKEN` | secret | project token do Railway |
+| `RAILWAY_ENVIRONMENT_ID`, `RAILWAY_API_SERVICE_ID`, `RAILWAY_WORKER_SERVICE_ID`, `RAILWAY_MIGRATION_SERVICE` | var | Railway |
+| `VERCEL_TOKEN` | secret | deploy do web |
+| `VERCEL_ORG_ID`, `VERCEL_PROJECT_ID`, `STAGING_WEB_DOMAIN` | var | projeto Vercel (Root Directory `003-project/apps/web`) e alias |
+| `STAGING_API_URL` | var | base do smoke |
+
+Segredos de aplicação (banco, Redis, JWT, PII…) ficam no secret manager da plataforma, nunca no GitHub.
 
 ### Ainda não incluído (tarefas seguintes da S1)
 

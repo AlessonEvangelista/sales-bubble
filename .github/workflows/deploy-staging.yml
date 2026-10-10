@@ -1,0 +1,324 @@
+# CD de staging do Bolha Venda (BV-105 / EN-025) — pipeline-ci-cd.md §1, §4, §5 e §6.
+#
+# Fluxo: CI verde em push (main/develop) → imagens api/worker (tag = sha) → Trivy → push no
+# GHCR com SBOM + proveniência → job de migration → deploy de api/worker por digest → web na
+# Vercel → smoke em /api/v1/health/ready.
+#
+# Até a plataforma de contêiner ser escolhida e provisionada (BV-104), os passos que tocam a
+# nuvem ficam guardados por variáveis de repositório/ambiente e são PULADOS com aviso:
+#   vars.STAGING_PLATFORM   cloudrun | railway   (vazio ⇒ migration e deploy de api/worker pulados)
+#   vars.VERCEL_PROJECT_ID + secrets.VERCEL_TOKEN (ausentes ⇒ deploy do web pulado)
+#   vars.STAGING_API_URL    (vazio ⇒ smoke pulado)
+# O build, o Trivy e a publicação das imagens no GHCR rodam sempre (não dependem da nuvem).
+# Credencial de nuvem: composite action .github/actions/oidc-cloud-auth (BV-110) — OIDC/WIF no GCP,
+# project token do environment no Railway —
+# sem chave de longa duração. Detalhes e variáveis: 003-project/README.md, seção BV-105.
+name: Deploy staging
+
+on:
+  workflow_run:
+    workflows: [CI]
+    types: [completed]
+    branches: [main, develop]
+  workflow_dispatch:
+
+# Deploys nunca se cancelam no meio (pipeline-ci-cd.md §3); execuções enfileiram.
+concurrency:
+  group: deploy-staging
+  cancel-in-progress: false
+
+permissions: {}
+
+env:
+  TURBO_TELEMETRY_DISABLED: "1"
+  NEXT_TELEMETRY_DISABLED: "1"
+  HUSKY: "0"
+
+defaults:
+  run:
+    shell: bash
+    working-directory: 003-project
+
+jobs:
+  plan:
+    name: Plano (commit e guardas)
+    # Só implanta o que passou no CI de um push (não de PR); workflow_dispatch usa o ref escolhido.
+    if: >-
+      github.event_name == 'workflow_dispatch' ||
+      (github.event.workflow_run.conclusion == 'success' && github.event.workflow_run.event == 'push')
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    outputs:
+      sha: ${{ steps.plan.outputs.sha }}
+      short_sha: ${{ steps.plan.outputs.short_sha }}
+      image_prefix: ${{ steps.plan.outputs.image_prefix }}
+    steps:
+      - name: Resolver commit e prefixo das imagens
+        id: plan
+        working-directory: .
+        env:
+          RUN_SHA: ${{ github.event.workflow_run.head_sha || github.sha }}
+          OWNER: ${{ github.repository_owner }}
+          PLATFORM: ${{ vars.STAGING_PLATFORM }}
+        run: |
+          echo "sha=$RUN_SHA" >> "$GITHUB_OUTPUT"
+          echo "short_sha=${RUN_SHA:0:7}" >> "$GITHUB_OUTPUT"
+          echo "image_prefix=ghcr.io/${OWNER,,}/bolha" >> "$GITHUB_OUTPUT"
+          if [ -z "$PLATFORM" ]; then
+            echo "::warning title=Staging sem plataforma::vars.STAGING_PLATFORM vazio (BV-104 pendente): imagens são publicadas, mas migration e deploy de api/worker serão pulados."
+          fi
+
+  image:
+    name: Imagem ${{ matrix.app }} (build, Trivy, GHCR)
+    needs: plan
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    permissions:
+      contents: read
+      packages: write # push no GHCR com o GITHUB_TOKEN
+      id-token: write # assinatura keyless (Sigstore) da proveniência
+      attestations: write
+    strategy:
+      fail-fast: true
+      matrix:
+        app: [api, worker]
+    env:
+      IMAGE: ${{ needs.plan.outputs.image_prefix }}-${{ matrix.app }}
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          ref: ${{ needs.plan.outputs.sha }}
+          persist-credentials: false
+      - uses: docker/setup-buildx-action@v4
+      - name: Build local para o scan (sem push)
+        uses: docker/build-push-action@v7
+        with:
+          context: 003-project
+          file: 003-project/apps/${{ matrix.app }}/Dockerfile
+          load: true
+          push: false
+          tags: bolha-${{ matrix.app }}:scan
+          build-args: |
+            APP_VERSION=sha-${{ needs.plan.outputs.short_sha }}
+            GIT_SHA=${{ needs.plan.outputs.sha }}
+          cache-from: type=gha,scope=${{ matrix.app }}
+          cache-to: type=gha,mode=max,scope=${{ matrix.app }}
+      - name: Trivy (CVE crítica/alta corrigível bloqueia o push)
+        # v0.36.0 fixado por SHA, igual ao ci.yml.
+        uses: aquasecurity/trivy-action@ed142fd0673e97e23eac54620cfb913e5ce36c25
+        with:
+          image-ref: bolha-${{ matrix.app }}:scan
+          severity: CRITICAL,HIGH
+          ignore-unfixed: true
+          exit-code: "1"
+      - uses: docker/login-action@v4
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+      - name: Push no GHCR (tag = sha) com SBOM e proveniência
+        id: push
+        uses: docker/build-push-action@v7
+        with:
+          context: 003-project
+          file: 003-project/apps/${{ matrix.app }}/Dockerfile
+          push: true
+          # Padrão do docker/metadata-action (type=sha), consumido também pelo BV-106.
+          tags: ${{ env.IMAGE }}:sha-${{ needs.plan.outputs.short_sha }}
+          build-args: |
+            APP_VERSION=sha-${{ needs.plan.outputs.short_sha }}
+            GIT_SHA=${{ needs.plan.outputs.sha }}
+          sbom: true
+          provenance: mode=max
+          cache-from: type=gha,scope=${{ matrix.app }}
+      - name: Atestado de proveniência (SLSA, Sigstore)
+        uses: actions/attest-build-provenance@v4
+        with:
+          subject-name: ${{ env.IMAGE }}
+          subject-digest: ${{ steps.push.outputs.digest }}
+          push-to-registry: true
+      - name: Digest publicado
+        working-directory: .
+        env:
+          DIGEST: ${{ steps.push.outputs.digest }}
+        run: echo "### \`$IMAGE@$DIGEST\`" >> "$GITHUB_STEP_SUMMARY"
+
+  migrate:
+    name: Migration (staging)
+    needs: [plan, image]
+    if: vars.STAGING_PLATFORM != ''
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    environment: staging
+    permissions:
+      contents: read
+      id-token: write # OIDC para a nuvem (BV-110)
+    env:
+      PLATFORM: ${{ vars.STAGING_PLATFORM }}
+      GCP_WIF_PROVIDER: ${{ vars.GCP_WIF_PROVIDER }}
+      GCP_DEPLOY_SA: ${{ vars.GCP_DEPLOY_SA }}
+      GCP_PROJECT_ID: ${{ vars.GCP_PROJECT_ID }}
+      DB_DIRECT_URL_SECRET: ${{ vars.STAGING_DB_DIRECT_URL_SECRET }}
+      RAILWAY_MIGRATION_SERVICE: ${{ vars.RAILWAY_MIGRATION_SERVICE }}
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          ref: ${{ needs.plan.outputs.sha }}
+          persist-credentials: false
+      - name: Autenticação na nuvem (OIDC, BV-110)
+        if: hashFiles('.github/actions/oidc-cloud-auth/action.yml') != ''
+        uses: ./.github/actions/oidc-cloud-auth
+        with:
+          railway-token: ${{ secrets.RAILWAY_TOKEN }} # só usado com STAGING_PLATFORM=railway
+      - name: Exigir a action de OIDC (BV-110)
+        if: hashFiles('.github/actions/oidc-cloud-auth/action.yml') == ''
+        working-directory: .
+        run: |
+          echo "::error::.github/actions/oidc-cloud-auth (BV-110) não existe; sem ela não há credencial para a nuvem."
+          exit 1
+      - uses: actions/setup-node@v7
+        with:
+          node-version-file: 003-project/.nvmrc
+          cache: npm
+          cache-dependency-path: 003-project/package-lock.json
+      - run: npm ci
+      - name: Railway CLI
+        if: env.PLATFORM == 'railway'
+        run: npm install --global --ignore-scripts=false @railway/cli@5.64.2
+      - name: prisma migrate deploy (antes de qualquer revisão nova receber tráfego)
+        run: bash tools/deploy/run-migrations.sh staging
+
+  deploy-backend:
+    name: Deploy ${{ matrix.app }} (staging)
+    needs: [plan, image, migrate]
+    if: vars.STAGING_PLATFORM != ''
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    environment: staging
+    permissions:
+      contents: read
+      packages: read # resolver o digest da tag sha-<commit> no GHCR
+      id-token: write
+    strategy:
+      fail-fast: false
+      matrix:
+        app: [api, worker]
+    env:
+      PLATFORM: ${{ vars.STAGING_PLATFORM }}
+      APP: ${{ matrix.app }}
+      APP_VERSION: sha-${{ needs.plan.outputs.short_sha }}
+      IMAGE_TAG: ${{ needs.plan.outputs.image_prefix }}-${{ matrix.app }}:sha-${{ needs.plan.outputs.short_sha }}
+      GCP_WIF_PROVIDER: ${{ vars.GCP_WIF_PROVIDER }}
+      GCP_DEPLOY_SA: ${{ vars.GCP_DEPLOY_SA }}
+      GCP_PROJECT_ID: ${{ vars.GCP_PROJECT_ID }}
+      GCP_REGION: ${{ vars.GCP_REGION }}
+      IMAGE_MIRROR: ${{ vars.STAGING_IMAGE_MIRROR }}
+      RAILWAY_ENVIRONMENT_ID: ${{ vars.RAILWAY_ENVIRONMENT_ID }}
+      RAILWAY_API_SERVICE_ID: ${{ vars.RAILWAY_API_SERVICE_ID }}
+      RAILWAY_WORKER_SERVICE_ID: ${{ vars.RAILWAY_WORKER_SERVICE_ID }}
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          ref: ${{ needs.plan.outputs.sha }}
+          persist-credentials: false
+      - name: Autenticação na nuvem (OIDC, BV-110)
+        if: hashFiles('.github/actions/oidc-cloud-auth/action.yml') != ''
+        uses: ./.github/actions/oidc-cloud-auth
+        with:
+          railway-token: ${{ secrets.RAILWAY_TOKEN }} # só usado com STAGING_PLATFORM=railway
+      - name: Exigir a action de OIDC (BV-110)
+        if: hashFiles('.github/actions/oidc-cloud-auth/action.yml') == ''
+        working-directory: .
+        run: |
+          echo "::error::.github/actions/oidc-cloud-auth (BV-110) não existe; sem ela não há credencial para a nuvem."
+          exit 1
+      - uses: docker/login-action@v4
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+      - name: Deploy por digest (a mesma imagem que passou no Trivy)
+        run: |
+          digest="$(docker buildx imagetools inspect "$IMAGE_TAG" --format '{{json .Manifest.Digest}}' | tr -d '"')"
+          bash tools/deploy/deploy.sh staging "$APP" "${IMAGE_TAG%%:sha-*}@${digest}"
+
+  deploy-web:
+    name: Deploy web (Vercel, staging)
+    needs: [plan, deploy-backend]
+    # Roda mesmo com o backend pulado (BV-104 pendente), mas nunca se o backend falhou.
+    if: >-
+      always() && needs.plan.result == 'success' &&
+      (needs.deploy-backend.result == 'success' || needs.deploy-backend.result == 'skipped')
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    environment: staging
+    permissions:
+      contents: read
+    env:
+      VERCEL_TOKEN: ${{ secrets.VERCEL_TOKEN }}
+      VERCEL_ORG_ID: ${{ vars.VERCEL_ORG_ID }}
+      VERCEL_PROJECT_ID: ${{ vars.VERCEL_PROJECT_ID }}
+      STAGING_WEB_DOMAIN: ${{ vars.STAGING_WEB_DOMAIN }}
+    defaults:
+      run:
+        working-directory: .
+    steps:
+      - name: Verificar configuração da Vercel
+        id: vercel
+        run: |
+          if [ -n "$VERCEL_TOKEN" ] && [ -n "$VERCEL_ORG_ID" ] && [ -n "$VERCEL_PROJECT_ID" ]; then
+            echo "enabled=true" >> "$GITHUB_OUTPUT"
+          else
+            echo "::warning title=Vercel não configurada::secrets.VERCEL_TOKEN, vars.VERCEL_ORG_ID e/ou vars.VERCEL_PROJECT_ID ausentes — deploy do web pulado."
+            echo "enabled=false" >> "$GITHUB_OUTPUT"
+          fi
+      - if: steps.vercel.outputs.enabled == 'true'
+        uses: actions/checkout@v7
+        with:
+          ref: ${{ needs.plan.outputs.sha }}
+          persist-credentials: false
+      - if: steps.vercel.outputs.enabled == 'true'
+        uses: actions/setup-node@v7
+        with:
+          node-version-file: 003-project/.nvmrc
+      - name: Build e deploy (preview → alias de staging)
+        if: steps.vercel.outputs.enabled == 'true'
+        # O projeto Vercel aponta Root Directory = 003-project/apps/web; as NEXT_PUBLIC_* de
+        # staging ficam no ambiente "Preview" do projeto na Vercel.
+        run: |
+          npm install --global vercel@63.1.2
+          vercel pull --yes --environment=preview --token="$VERCEL_TOKEN"
+          vercel build --token="$VERCEL_TOKEN"
+          url="$(vercel deploy --prebuilt --token="$VERCEL_TOKEN")"
+          echo "### web: $url" >> "$GITHUB_STEP_SUMMARY"
+          if [ -n "$STAGING_WEB_DOMAIN" ]; then
+            vercel alias set "$url" "$STAGING_WEB_DOMAIN" --token="$VERCEL_TOKEN"
+          fi
+
+  smoke:
+    name: Smoke de staging
+    needs: [deploy-backend, deploy-web]
+    if: >-
+      always() && vars.STAGING_API_URL != '' && needs.deploy-backend.result == 'success' &&
+      (needs.deploy-web.result == 'success' || needs.deploy-web.result == 'skipped')
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    permissions: {}
+    defaults:
+      run:
+        working-directory: .
+    env:
+      API_URL: ${{ vars.STAGING_API_URL }}
+    steps:
+      - name: GET /api/v1/health/ready (até 5 min)
+        run: |
+          for i in $(seq 1 30); do
+            if body="$(curl -fsS --max-time 5 "$API_URL/api/v1/health/ready")"; then
+              echo "pronto: $body"
+              exit 0
+            fi
+            echo "tentativa $i: ainda não pronto"
+            sleep 10
+          done
+          echo "::error::Staging não ficou pronto em $API_URL/api/v1/health/ready"
+          exit 1
