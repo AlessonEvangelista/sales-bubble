@@ -17,7 +17,9 @@
     "@bolha/ui-components": "*",
     "next": "^16.4.0",
     "react": "^19.3.0",
-    "react-dom": "^19.3.0"
+    "react-dom": "^19.3.0",
+    "@bolha/observability": "*",
+    "@sentry/nextjs": "^11.6.0"
   },
   "devDependencies": {
     "@types/react": "^19.3.0",
