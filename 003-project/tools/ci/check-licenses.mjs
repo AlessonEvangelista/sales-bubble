@@ -31,7 +31,13 @@ const ALLOWLIST = new Set([
 ]);
 
 // Exceções pontuais: "nome@versão" → justificativa (registrar também em .security/exceptions.yaml).
-const EXCEPTIONS = new Map([]);
+const EXCEPTIONS = new Map([
+  [
+    'elkjs@0.11.1',
+    'BV-107: só via prisma CLI (Prisma Studio), dependência de desenvolvimento; entra em ".prod" ' +
+      'porque @prisma/client declara prisma como peer opcional. Não é carregado em runtime.',
+  ],
+]);
 
 const raw = execFileSync('npm', ['query', '.prod'], {
   encoding: 'utf8',
