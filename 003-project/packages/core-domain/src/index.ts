@@ -3,8 +3,8 @@
  *
  * Esqueleto criado no BV-100. Pode importar apenas `@bolha/contracts` (somente tipos) e
  * bibliotecas puras. Proibido: NestJS, Prisma, Redis, BullMQ, Socket.io, `fetch`,
- * `process.env` e relógio do sistema (usar a porta `Clock`). A verificação automática
- * dessa fronteira entra no BV-101.
+ * `process.env` e relógio do sistema (usar a porta `Clock`). Verificado por
+ * `npm run lint:boundaries` (dependency-cruiser) e pelo ESLint (BV-101).
  */
 
 /** Bounded contexts do monólito modular (ADR-0001). */

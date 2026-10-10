@@ -1,0 +1,334 @@
+# CI do Bolha Venda (BV-103 / EN-023) — gates obrigatórios de pipeline-ci-cd.md §2 e
+# estrategia-testes.md §7. O monorepo vive em 003-project/ (npm workspaces + Turborepo).
+#
+# Gates que dependem de ferramental de outras tarefas rodam via tools/ci/run-if-present.mjs
+# (ou condicionados à existência do arquivo): enquanto a tarefa não entra, o passo emite um
+# aviso "Gate pendente" e não falha; quando o script/arquivo existir, o gate passa a bloquear
+# sem precisar editar este workflow.
+name: CI
+
+on:
+  # Sem filtro de branch: cobre PRs para develop/main e PRs empilhados (base feature/*).
+  pull_request:
+  push:
+    branches: [main, develop]
+  workflow_dispatch:
+
+concurrency:
+  group: ci-${{ github.event.pull_request.number || github.ref }}
+  cancel-in-progress: ${{ github.event_name == 'pull_request' }}
+
+permissions:
+  contents: read
+  pull-requests: read # commitlint e gitleaks listam os commits do PR
+
+env:
+  TURBO_TELEMETRY_DISABLED: "1"
+  NEXT_TELEMETRY_DISABLED: "1"
+  HUSKY: "0"
+
+defaults:
+  run:
+    shell: bash
+    working-directory: 003-project
+
+jobs:
+  quality:
+    name: Qualidade (commits, formato, lint, fronteiras, tipos)
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          fetch-depth: 0
+      - uses: actions/setup-node@v7
+        with:
+          node-version-file: 003-project/.nvmrc
+          cache: npm
+          cache-dependency-path: 003-project/package-lock.json
+      - run: npm ci
+      - uses: actions/cache@v6
+        with:
+          path: 003-project/.turbo/cache
+          key: turbo-quality-${{ runner.os }}-${{ github.sha }}
+          restore-keys: turbo-quality-${{ runner.os }}-
+      - name: Commits (Conventional Commits)
+        if: github.event_name == 'pull_request'
+        uses: wagoid/commitlint-github-action@v6
+        with:
+          configFile: 003-project/commitlint.config.mjs
+      - name: Formatação (Prettier)
+        run: npm run format:check
+      - name: Lint (ESLint)
+        run: npm run lint
+      - name: Fronteiras de arquitetura
+        run: node tools/ci/run-if-present.mjs lint:boundaries BV-101
+      - name: Testes das regras de fronteira
+        run: node tools/ci/run-if-present.mjs test:boundaries BV-101
+      - name: Tipos (tsc --noEmit)
+        run: npm run typecheck
+      - name: Schema Prisma
+        if: hashFiles('003-project/packages/database/prisma/schema.prisma') != ''
+        run: npx prisma validate --schema packages/database/prisma/schema.prisma
+      - name: Lint de migrations (squawk)
+        run: node tools/ci/run-if-present.mjs lint:migrations BV-107
+
+  unit:
+    name: Testes unitários + cobertura
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v7
+      - uses: actions/setup-node@v7
+        with:
+          node-version-file: 003-project/.nvmrc
+          cache: npm
+          cache-dependency-path: 003-project/package-lock.json
+      - run: npm ci
+      - uses: actions/cache@v6
+        with:
+          path: 003-project/.turbo/cache
+          key: turbo-unit-${{ runner.os }}-${{ github.sha }}
+          restore-keys: turbo-unit-${{ runner.os }}-
+      - name: Vitest com cobertura (piso do core-domain 90/85)
+        run: npm run test:coverage
+      - uses: actions/upload-artifact@v7
+        if: always()
+        with:
+          name: coverage
+          path: 003-project/**/coverage/lcov.info
+          if-no-files-found: ignore
+          retention-days: 14
+
+  integration:
+    name: Integração e contrato (Postgres 16, Redis 7)
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    services:
+      postgres:
+        image: postgres:16
+        env:
+          POSTGRES_USER: bolha
+          POSTGRES_PASSWORD: bolha
+          POSTGRES_DB: bolha_test
+        ports: ["5432:5432"]
+        options: >-
+          --health-cmd "pg_isready -U bolha" --health-interval 5s --health-timeout 5s --health-retries 10
+      redis:
+        image: redis:7
+        ports: ["6379:6379"]
+        options: >-
+          --health-cmd "redis-cli ping" --health-interval 5s --health-timeout 5s --health-retries 10
+    env:
+      APP_ENV: ci
+      DATABASE_URL: postgresql://bolha:bolha@localhost:5432/bolha_test
+      DATABASE_DIRECT_URL: postgresql://bolha:bolha@localhost:5432/bolha_test
+      REDIS_URL: redis://localhost:6379
+      PAYMENT_PROVIDER: fake
+      CNPJ_PROVIDER: fake
+    steps:
+      - uses: actions/checkout@v7
+      - uses: actions/setup-node@v7
+        with:
+          node-version-file: 003-project/.nvmrc
+          cache: npm
+          cache-dependency-path: 003-project/package-lock.json
+      - run: npm ci
+      - name: Migrations no banco efêmero
+        run: node tools/ci/run-if-present.mjs db:deploy BV-102/BV-107
+      - name: Testes de integração (Vitest + Supertest + Testcontainers)
+        run: node tools/ci/run-if-present.mjs test:int BV-102/BV-107
+      - name: Concorrência da última cota (100 req → 1×201, 99×409)
+        run: node tools/ci/run-if-present.mjs test:concurrency 'BV-107 + bubble/quota'
+      - name: Contrato da API (oasdiff + catálogo de erros)
+        run: node tools/ci/run-if-present.mjs test:contract BV-111
+
+  build:
+    name: Build (Turborepo)
+    needs: [quality, unit, integration]
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v7
+      - uses: actions/setup-node@v7
+        with:
+          node-version-file: 003-project/.nvmrc
+          cache: npm
+          cache-dependency-path: 003-project/package-lock.json
+      - run: npm ci
+      - uses: actions/cache@v6
+        with:
+          path: 003-project/.turbo/cache
+          key: turbo-build-${{ runner.os }}-${{ github.sha }}
+          restore-keys: turbo-build-${{ runner.os }}-
+      - run: npm run build
+
+  image:
+    name: Imagem ${{ matrix.app }} (build + Trivy)
+    needs: build
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    strategy:
+      fail-fast: false
+      matrix:
+        app: [api, worker]
+    steps:
+      - uses: actions/checkout@v7
+      - name: Verificar Dockerfile
+        id: dockerfile
+        env:
+          DOCKERFILE: apps/${{ matrix.app }}/Dockerfile
+        run: |
+          if [ -f "$DOCKERFILE" ]; then
+            echo "present=true" >> "$GITHUB_OUTPUT"
+          else
+            echo "::warning title=Gate pendente::$DOCKERFILE ainda não existe (BV-105)."
+            echo "present=false" >> "$GITHUB_OUTPUT"
+          fi
+      - if: steps.dockerfile.outputs.present == 'true'
+        uses: docker/setup-buildx-action@v4
+      - name: Build da imagem (sem push)
+        if: steps.dockerfile.outputs.present == 'true'
+        uses: docker/build-push-action@v7
+        with:
+          context: 003-project
+          file: 003-project/apps/${{ matrix.app }}/Dockerfile
+          push: false
+          load: true
+          tags: bolha-${{ matrix.app }}:ci
+          cache-from: type=gha,scope=${{ matrix.app }}
+          cache-to: type=gha,mode=max,scope=${{ matrix.app }}
+      - name: Trivy (CVE crítica/alta corrigível bloqueia)
+        if: steps.dockerfile.outputs.present == 'true'
+        # v0.36.0 fixado por SHA (ação com histórico de tags comprometidas).
+        uses: aquasecurity/trivy-action@ed142fd0673e97e23eac54620cfb913e5ce36c25
+        with:
+          image-ref: bolha-${{ matrix.app }}:ci
+          severity: CRITICAL,HIGH
+          ignore-unfixed: true
+          exit-code: "1"
+
+  security:
+    name: Segurança (segredos, dependências, licenças)
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          fetch-depth: 0
+      - name: Segredos (gitleaks)
+        uses: gitleaks/gitleaks-action@v2
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          GITLEAKS_ENABLE_UPLOAD_ARTIFACT: "false"
+      - uses: actions/setup-node@v7
+        with:
+          node-version-file: 003-project/.nvmrc
+          cache: npm
+          cache-dependency-path: 003-project/package-lock.json
+      - run: npm ci --ignore-scripts
+      - name: Dependências de runtime (npm audit, alta/crítica bloqueia)
+        run: npm audit --omit=dev --audit-level=high
+      - name: Dependências (OSV-Scanner)
+        # Exceções: 003-project/osv-scanner.toml ([[IgnoredVulns]] com motivo e expiração).
+        uses: google/osv-scanner-action/osv-scanner-action@v2.6.0
+        with:
+          scan-args: --lockfile=003-project/package-lock.json
+      - name: Licenças de runtime (allowlist)
+        run: node tools/ci/check-licenses.mjs
+
+  codeql:
+    name: SAST (CodeQL security-extended)
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    permissions:
+      contents: read
+      security-events: write
+      actions: read
+    steps:
+      - uses: actions/checkout@v7
+      - uses: github/codeql-action/init@v4
+        with:
+          languages: javascript-typescript
+          queries: security-extended
+          config: |
+            paths:
+              - 003-project
+            paths-ignore:
+              - 003-project/prototipacao-gemini
+              - '**/node_modules'
+              - '**/dist'
+              - '**/.next'
+      - uses: github/codeql-action/analyze@v4
+        with:
+          category: /language:javascript-typescript
+
+  e2e:
+    name: E2E smoke (Playwright + axe)
+    needs: build
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v7
+      - name: Verificar Playwright e docker compose
+        id: e2e
+        run: |
+          if compgen -G "apps/web/playwright.config.*" > /dev/null \
+            && compgen -G "*compose.y*ml" > /dev/null; then
+            echo "enabled=true" >> "$GITHUB_OUTPUT"
+          else
+            echo "::warning title=Gate pendente::Playwright (apps/web/playwright.config.*) e/ou docker compose (BV-102) ainda não existem."
+            echo "enabled=false" >> "$GITHUB_OUTPUT"
+          fi
+      - if: steps.e2e.outputs.enabled == 'true'
+        uses: actions/setup-node@v7
+        with:
+          node-version-file: 003-project/.nvmrc
+          cache: npm
+          cache-dependency-path: 003-project/package-lock.json
+      - if: steps.e2e.outputs.enabled == 'true'
+        run: npm ci
+      - if: steps.e2e.outputs.enabled == 'true'
+        uses: actions/cache@v6
+        with:
+          path: ~/.cache/ms-playwright
+          key: pw-${{ runner.os }}-${{ hashFiles('003-project/package-lock.json') }}
+      - if: steps.e2e.outputs.enabled == 'true'
+        run: npx playwright install --with-deps chromium
+      - name: Subir Postgres e Redis
+        if: steps.e2e.outputs.enabled == 'true'
+        run: docker compose up -d --wait postgres redis
+      - name: Ambiente, migrations e seed
+        if: steps.e2e.outputs.enabled == 'true'
+        run: |
+          cp .env.example .env
+          node tools/ci/run-if-present.mjs db:deploy BV-107
+          node tools/ci/run-if-present.mjs db:seed BV-102
+      - if: steps.e2e.outputs.enabled == 'true'
+        run: npm run test:e2e
+      - if: failure() && steps.e2e.outputs.enabled == 'true'
+        uses: actions/upload-artifact@v7
+        with:
+          name: playwright-report
+          path: 003-project/apps/web/playwright-report
+          retention-days: 14
+
+  # Check único para a branch protection: exige todos os gates acima.
+  ci-ok:
+    name: CI OK
+    if: always()
+    needs: [quality, unit, integration, build, image, security, codeql, e2e]
+    runs-on: ubuntu-latest
+    steps:
+      - name: Resultado dos gates
+        working-directory: .
+        env:
+          RESULTS: ${{ join(needs.*.result, ' ') }}
+        run: |
+          echo "Resultados: $RESULTS"
+          for r in $RESULTS; do
+            if [ "$r" != "success" ]; then
+              echo "::error::Algum gate obrigatório não passou ($r)."
+              exit 1
+            fi
+          done

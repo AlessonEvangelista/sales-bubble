@@ -1,0 +1,7 @@
+# Fins de linha LF no monorepo (BV-103): o Prettier (`format:check` no CI) exige LF;
+# sem isto, checkouts no Windows com core.autocrlf=true falham localmente.
+* text=auto eol=lf
+*.png binary
+*.jpg binary
+*.ico binary
+*.webp binary
