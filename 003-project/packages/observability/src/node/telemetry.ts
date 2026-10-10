@@ -57,7 +57,7 @@ export function startTelemetry(config: TelemetryConfig): TelemetryHandle {
     return active;
   }
 
-  const endpoint = config.otlpEndpoint.replace(/\/+$/, '');
+  const endpoint = trimTrailingSlashes(config.otlpEndpoint);
   const traceExporter =
     config.traceExporter ?? new OTLPTraceExporter({ url: `${endpoint}/v1/traces` });
 
@@ -102,6 +102,13 @@ export function startTelemetry(config: TelemetryConfig): TelemetryHandle {
     },
   };
   return active;
+}
+
+/** Remove barras finais em tempo linear (sem regex: evita ReDoS com entrada de configuração). */
+function trimTrailingSlashes(url: string): string {
+  let end = url.length;
+  while (end > 0 && url.charCodeAt(end - 1) === 47 /* '/' */) end -= 1;
+  return url.slice(0, end);
 }
 
 /** Encerra a telemetria (flush de spans/métricas pendentes). Chamado no shutdown do Nest. */

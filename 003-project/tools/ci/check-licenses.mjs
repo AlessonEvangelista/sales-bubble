@@ -31,7 +31,12 @@ const ALLOWLIST = new Set([
 ]);
 
 // Exceções pontuais: "nome@versão" → justificativa (registrar também em .security/exceptions.yaml).
-const EXCEPTIONS = new Map([]);
+const EXCEPTIONS = new Map([
+  [
+    'sentry@0.45.0',
+    'LIC-0001: Sentry CLI (FSL-1.1-Apache-2.0), transitiva de @sentry/node; não roda em runtime.',
+  ],
+]);
 
 const raw = execFileSync('npm', ['query', '.prod'], {
   encoding: 'utf8',
