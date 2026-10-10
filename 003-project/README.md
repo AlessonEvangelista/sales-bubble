@@ -155,6 +155,33 @@ script, o passo emite o aviso **"Gate pendente"** e passa; quando a tarefa criar
 o gate passa a bloquear sem editar o workflow. Exceções de licença ficam em `tools/ci/check-licenses.mjs`;
 de vulnerabilidade, em `osv-scanner.toml` (e no registro `.security/exceptions.yaml`).
 
+## 🔌 Portas do core-domain e fakes (BV-112)
+
+Portas (interfaces) que o domínio usa para falar com o mundo externo — os adapters reais ficam em
+`packages/database` e `apps/*` (guia §2.2, ADR-0001). Tudo em `packages/core-domain/src`:
+
+| Porta / tipo | Onde | Base | Fake (`@bolha/core-domain/testing`) |
+| :--- | :--- | :--- | :--- |
+| `Clock`, `IdGenerator` | `shared/` | guia §5.4 | `FixedClock` (`advance`/`set`), `SequentialIdGenerator` (UUID formato v7) |
+| `UnitOfWork<TScope>`, `EventRecorder`, `DomainEvent` | `shared/` | guia §2.1, §7 | `InMemoryUnitOfWork` (commit/rollback, `failNextCommit`), `InMemoryEventRecorder` (outbox em memória) |
+| `Result`/`ok`/`err`, `DomainError`, `DomainInvariantViolation`, `Money` (centavos `bigint`) | `shared/` | guia §5.3–§5.4 | — |
+| `PaymentPort` = `CardPaymentPort` + `PixPaymentPort` + `PaymentCancellationPort` + `PayoutPort` + `ChargeQueryPort`; `paymentIdempotencyKeys` | `payment/` | ADR-0003 | `FakePaymentPort` (pré-autorização/captura parcial, Pix com estorno da diferença, void, refund, repasse, fetch-back, idempotência, `declineNext`/`failNextWithOutage`, `FAKE_CARD_TOKENS`, `orphanAuthorizations()`) |
+| `CnpjPort` + objeto de valor `Cnpj` (DV local, numérico e alfanumérico) | `identity/` | ADR-0008 | `FakeCnpjPort` (situação por CNPJ, `NOT_FOUND`, `failNextWithUnavailable`) |
+| `Notifier` + `notificationDedupeKey` | `notification/` | Spec F11 | `RecordingNotifier` (dedupe por chave, `failNext`) |
+
+```ts
+import { Money, paymentIdempotencyKeys } from '@bolha/core-domain';
+import { FakePaymentPort, FixedClock } from '@bolha/core-domain/testing';
+
+const clock = new FixedClock('2026-10-01T12:00:00Z');
+const payments = new FakePaymentPort({ clock });
+await payments.authorizeCard({ amount: Money.ofCents(12990), cardToken: 'tok', idempotencyKey: paymentIdempotencyKeys.pay(id), customerRef: accountId });
+```
+
+Recusas do gateway e CNPJ não encontrado/indisponível são valores (`Result`); indisponibilidade do
+gateway é exceção (`PaymentGatewayUnavailableError`). Os fakes também servem ao modo
+`PAYMENT_PROVIDER=fake` / `CNPJ_PROVIDER=fake` de dev.
+
 ### Ainda não incluído (tarefas seguintes da S1)
 
 - **BV-107** — schema Prisma e migrations (`db:migrate`, `db:migrate:create`, `db:deploy`, `db:reset`) e a
