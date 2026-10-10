@@ -21,7 +21,12 @@
     "test": "turbo run test",
     "test:coverage": "turbo run test -- --coverage",
     "format": "prettier --write .",
-    "format:check": "prettier --check ."
+    "format:check": "prettier --check .",
+    "db:up": "docker compose up -d --wait",
+    "db:down": "docker compose down",
+    "db:logs": "docker compose logs -f postgres redis",
+    "db:seed": "turbo run build --filter=@bolha/database --output-logs=errors-only && npm run db:seed --workspace @bolha/database --",
+    "keys:dev": "node tools/keys-dev.mjs"
   },
   "devDependencies": {
     "@eslint/js": "^10.0.1",

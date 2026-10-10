@@ -36,14 +36,49 @@ ninguém. Essas fronteiras são verificadas automaticamente (BV-101 — ver [Fro
 
 ## 🛠️ Instruções de Execução Local (Dev Setup)
 
-Pré-requisitos: Node.js 24 (`nvm use` lê o `.nvmrc`) e npm 11+.
+Pré-requisitos: Node.js 24 (`nvm use` lê o `.nvmrc`), npm 11+ e Docker 24+ com Compose v2 (`docker compose`).
 
 ```bash
 cd 003-project
 npm install          # ou `npm ci` quando houver package-lock.json versionado
-npm run build        # build de todos os workspaces (Turborepo, respeitando dependências)
-npm run dev          # web :3000, api :3001 (GET /api/v1/health/live), worker
+cp .env.example .env # valores de dev já funcionam com o compose (ver aviso abaixo)
+npm run db:up        # Postgres 16 + Redis 7 + Mailpit, espera os healthchecks
+npm run db:seed      # seed de desenvolvimento (`-- --small` para 20 bolhas)
+npm run dev          # web :3000, api :3001, worker
 ```
+
+Verificação rápida:
+
+- `curl http://localhost:3001/api/v1/health/live` → `{"status":"ok"}`
+- `curl http://localhost:3001/api/v1/health/ready` → `{"status":"ok","db":"up","redis":"up"}` (503 se algum estiver fora)
+- Mailpit (e-mails de dev): <http://localhost:8025>
+
+> **Atenção ao `.env`:** se o seu `003-project/.env` já guarda credenciais de ferramentas
+> (Jira/GitHub — ver [REPO_MAP](../002-llm/REPO_MAP.md)), **não** rode o `cp`: acrescente as
+> variáveis do `.env.example` ao final do arquivo. O `.env` nunca é commitado (`.gitignore`).
+
+### Infraestrutura local (`docker-compose.yml`)
+
+| Serviço | Imagem | Porta no host | Observação |
+| :--- | :--- | :--- | :--- |
+| `postgres` | `postgres:16-alpine` | `5432` (`POSTGRES_HOST_PORT`) | usuário/senha `bolha`/`bolha`, banco `bolha_dev`, `pg_stat_statements` |
+| `redis` | `redis:7-alpine` | `6379` (`REDIS_HOST_PORT`) | AOF `everysec` + `maxmemory-policy noeviction` (obrigatório p/ BullMQ) |
+| `mailpit` | `axllent/mailpit` | `1025` (SMTP), `8025` (UI) | caixa de e-mail falsa |
+| `otel-lgtm` | `grafana/otel-lgtm` | `3030`, `4317`, `4318` | opcional: `docker compose --profile obs up -d` |
+
+Os dados persistem nos volumes nomeados `pgdata` e `redisdata`; `docker compose down -v` apaga tudo.
+Se 5432/6379 já estiverem ocupadas por outro projeto, defina `POSTGRES_HOST_PORT`/`REDIS_HOST_PORT`
+no `.env` e ajuste a porta em `DATABASE_URL`, `DATABASE_DIRECT_URL` e `REDIS_URL`.
+
+### Variáveis de ambiente
+
+O [`.env.example`](.env.example) lista todas as variáveis do guia (§3.3), agrupadas e comentadas, sem
+segredos reais. A API (`apps/api/src/config/env.ts`) e o worker (`apps/worker/src/config/env.ts`) carregam
+o `003-project/.env` (variáveis do processo têm precedência) e validam com Zod na inicialização: sem
+`DATABASE_URL`/`REDIS_URL` válidas o processo **não sobe**. Cada história acrescenta ao schema as variáveis
+que passar a consumir. Segredos de staging/produção vivem no secret manager, nunca em `.env`.
+
+### Comandos
 
 | Comando | O que faz |
 | :--- | :--- |
@@ -55,6 +90,10 @@ npm run dev          # web :3000, api :3001 (GET /api/v1/health/live), worker
 | `npm run typecheck` | `tsc --noEmit` em todos os workspaces. |
 | `npm run test` | Testes unitários (Vitest). |
 | `npm run format` / `format:check` | Prettier. |
+| `npm run db:up` / `db:down` | `docker compose up -d --wait` / `docker compose down` (preserva os volumes). |
+| `npm run db:logs` | Logs do Postgres e do Redis. |
+| `npm run db:seed` | Seed de desenvolvimento (`-- --small` → 20 bolhas). Até o BV-107 só valida a conexão. |
+| `npm run keys:dev` | Gera chaves de dev em `.secrets/`: par RSA do JWT RS256 e chaves de PII (`pii-keys.env`). |
 
 Filtrar por workspace: `npx turbo run test --filter=@bolha/core-domain`.
 
@@ -118,5 +157,5 @@ de vulnerabilidade, em `osv-scanner.toml` (e no registro `.security/exceptions.y
 
 ### Ainda não incluído (tarefas seguintes da S1)
 
-- **BV-102** — `docker-compose.yml` (Postgres 16, Redis 7, Mailpit), `.env.example`, seeds e comandos `db:*`.
-- **BV-107** — schema Prisma e migrations; **BV-111** — conteúdo do pacote `contracts`.
+- **BV-107** — schema Prisma e migrations (`db:migrate`, `db:migrate:create`, `db:deploy`, `db:reset`) e a
+  gravação real dos dados do seed; **BV-111** — conteúdo do pacote `contracts`.
