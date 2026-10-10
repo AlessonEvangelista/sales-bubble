@@ -28,6 +28,8 @@ WORKDIR /app
 COPY --from=pruner /repo/out/json/ ./
 RUN --mount=type=cache,id=bolha-npm,target=/root/.npm npm ci
 COPY --from=pruner /repo/out/full/ ./
+# turbo prune não leva arquivos de configuração da raiz que não são de workspace.
+COPY --from=pruner /repo/tsconfig.base.json ./
 RUN npx turbo run build --filter=@bolha/worker... --output-logs=errors-only
 RUN npm prune --omit=dev \
  && find apps packages -mindepth 2 -maxdepth 2 \
