@@ -14,3 +14,6 @@ coverage/
 next-env.d.ts
 npm-debug.log*
 .secrets/
+
+# Prisma Client gerado (BV-107) — `npm run db:generate`
+packages/database/src/shared/generated/

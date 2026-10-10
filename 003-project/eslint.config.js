@@ -16,6 +16,7 @@ export default tseslint.config(
       '**/coverage/**',
       '**/next-env.d.ts',
       'prototipacao-gemini/**',
+      'packages/database/src/shared/generated/**',
     ],
   },
   js.configs.recommended,
