@@ -92,8 +92,31 @@ pacote, então a verificação não depende de build prévio e distingue `import
 Para ampliar as libs puras do `core-domain`, edite `CORE_DOMAIN_ALLOWED_NPM` no `.dependency-cruiser.cjs`
 (exige revisão do tech lead).
 
+## ✅ CI (GitHub Actions)
+
+O workflow [`.github/workflows/ci.yml`](../.github/workflows/ci.yml) (raiz do repositório, BV-103) roda em todo PR
+(inclusive PRs empilhados) e em push para `main`/`develop`, sempre dentro de `003-project/`
+(Node do `.nvmrc`, `npm ci`, cache do npm e do Turborepo). Gates conforme
+[pipeline-ci-cd.md §2](../002-llm/002%20Docs/06-engenharia/pipeline-ci-cd.md#2-gates-obrigatórios-branch-protection):
+
+| Job | Gates | Reproduzir localmente |
+| :--- | :--- | :--- |
+| Qualidade | commitlint (PR), Prettier, ESLint, fronteiras `lint:boundaries` + `test:boundaries` (BV-101), `tsc`, Prisma/squawk (BV-107) | `npm run format:check && npm run lint && npm run typecheck` |
+| Testes unitários | Vitest + cobertura; piso do `core-domain` 90% linhas / 85% ramos | `npm run test:coverage` |
+| Integração | Postgres 16 + Redis 7 (services), `test:int`, `test:concurrency`, `test:contract` | pendente (BV-102/BV-107/BV-111) |
+| Build | `turbo run build` | `npm run build` |
+| Imagem | build Docker + Trivy de api/worker | pendente (Dockerfiles no BV-105) |
+| Segurança | gitleaks, `npm audit --omit=dev --audit-level=high`, OSV-Scanner, licenças | `npm audit --omit=dev --audit-level=high && node tools/ci/check-licenses.mjs` |
+| SAST | CodeQL `security-extended` | — |
+| E2E | Playwright + axe sobre docker compose | pendente (Playwright e compose/BV-102) |
+| **CI OK** | agrega todos os jobs — use este como *required check* | — |
+
+Gates cujo ferramental ainda não existe rodam via `tools/ci/run-if-present.mjs <script> <ticket>`: sem o
+script, o passo emite o aviso **"Gate pendente"** e passa; quando a tarefa criar o script (ex.: `lint:boundaries`),
+o gate passa a bloquear sem editar o workflow. Exceções de licença ficam em `tools/ci/check-licenses.mjs`;
+de vulnerabilidade, em `osv-scanner.toml` (e no registro `.security/exceptions.yaml`).
+
 ### Ainda não incluído (tarefas seguintes da S1)
 
 - **BV-102** — `docker-compose.yml` (Postgres 16, Redis 7, Mailpit), `.env.example`, seeds e comandos `db:*`.
-- **BV-103** — CI (`.github/workflows/ci.yml`) com os gates obrigatórios.
 - **BV-107** — schema Prisma e migrations; **BV-111** — conteúdo do pacote `contracts`.
