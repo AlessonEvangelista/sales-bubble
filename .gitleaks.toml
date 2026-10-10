@@ -1,0 +1,60 @@
+# =============================================================================
+# gitleaks — configuração do Bolha Venda (BV-110 / EN-030 / SEC-10, threat model TM-14).
+#
+# Usada pelo CI (job "Segurança", gitleaks-action, lê este arquivo na raiz do repositório)
+# e pelo hook local opcional (003-project/tools/git-hooks/pre-commit).
+# Política completa: 002-llm/002 Docs/08-seguranca-compliance/gestao-segredos.md.
+#
+# Regras de manutenção:
+# - Partimos das regras padrão do gitleaks (useDefault) e só ACRESCENTAMOS regras do projeto.
+# - Allowlist mínima: cada entrada tem justificativa no comentário ao lado. Exceção pontual
+#   para um achado é feita por fingerprint em .gitleaksignore (com comentário: motivo, dono,
+#   data) ou com `gitleaks:allow` na própria linha — nunca alargando a allowlist global.
+# - Toda regra nova ganha um caso em 003-project/tools/secrets/gitleaks-rules.test.ts
+#   (`npm run test:secrets`), que gera os segredos falsos em tempo de execução.
+# =============================================================================
+
+title = "Bolha Venda"
+
+[extend]
+useDefault = true
+
+# ---------------------------------------------------------------------------
+# Regras do projeto
+# ---------------------------------------------------------------------------
+
+[[rules]]
+id = "pagarme-api-key"
+description = "Chave secreta da API do Pagar.me (sk_/ak_ live ou test). Gateway de pagamento (ADR-0003)."
+regex = '''\b((?:sk|ak)_(?:live|test)_[A-Za-z0-9]{16,64})\b'''
+keywords = ["sk_live_", "sk_test_", "ak_live_", "ak_test_"]
+tags = ["pagarme", "payment"]
+
+[[rules]]
+id = "bolha-pii-key"
+description = "Chave de criptografia/HMAC de PII em base64 de 32 bytes (ADR-0012). Em produção vive no KMS/Secret Manager."
+regex = '''(?:PII_[A-Z0-9_]*KEY[A-Z0-9_]*)["']?[ \t]*[:=][ \t]*["']?([A-Za-z0-9+/]{43}=)'''
+keywords = ["pii_"]
+tags = ["pii", "kms"]
+
+[[rules]]
+id = "bolha-env-secret-assignment"
+description = "Atribuição de valor a variável sensível no formato do .env (…_SECRET, …_SECRET_KEY, …_PASSWORD, …_TOKEN, …_API_KEY)."
+# Só casa quando o NOME TERMINA no sufixo sensível (JWT_ACCESS_PRIVATE_KEY_PATH, REFRESH_TOKEN_TTL_DAYS
+# não casam) e o valor tem 8+ caracteres sem espaço/aspas/comentário na MESMA linha ([ \t], não \s:
+# campos vazios do .env.example não podem "emprestar" o valor da linha seguinte).
+regex = '''(?m)^[ \t]*(?:export[ \t]+)?[A-Z][A-Z0-9_]*(?:SECRET|SECRET_KEY|PASSWORD|TOKEN|API_KEY)[ \t]*=[ \t]*["']?([^\s"'#]{8,})'''
+entropy = 3.0
+keywords = ["secret", "password", "token", "api_key"]
+tags = ["env"]
+
+  # Referências a variáveis/segredos (não são valores): ${VAR}, $VAR, ${{ secrets.X }}.
+  [[rules.allowlists]]
+  description = "Referência a variável ou segredo do CI, não um valor"
+  regexTarget = "match"
+  regexes = ['''=[ \t]*["']?\$''']
+
+  # Placeholders explícitos de documentação.
+  [[rules.allowlists]]
+  description = "Placeholder de documentação"
+  regexes = ['''(?i)^(?:changeme|change_me|placeholder|example|dummy|your[_-].*|x{8,}|<[^>]*>)$''']
