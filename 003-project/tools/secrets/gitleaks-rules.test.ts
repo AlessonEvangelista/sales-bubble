@@ -10,7 +10,7 @@
  * 2. As cópias de `src/config/secrets.ts` na api e no worker são idênticas.
  */
 import { execFileSync, spawnSync } from 'node:child_process';
-import { randomBytes } from 'node:crypto';
+import { randomBytes, randomInt } from 'node:crypto';
 import { mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { basename, dirname, join, resolve } from 'node:path';
@@ -35,7 +35,7 @@ if (!hasGitleaks) {
 
 const ALNUM = 'ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789';
 function randomAlnum(length: number): string {
-  return [...randomBytes(length)].map((byte) => ALNUM[byte % ALNUM.length]).join('');
+  return Array.from({ length }, () => ALNUM[randomInt(ALNUM.length)]).join('');
 }
 
 /** Monta a chave em partes para que este arquivo não contenha o padrão literal. */
