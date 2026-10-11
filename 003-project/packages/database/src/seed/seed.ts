@@ -62,7 +62,9 @@ export async function runSeed(databaseUrl: string, options: SeedOptions): Promis
       "SELECT count(*)::text AS count FROM information_schema.tables WHERE table_schema = 'public'",
     );
     const tables = Number(rows[0]?.count ?? 0);
-    // TODO(BV-107): com o schema Prisma criado, fazer upsert de SEED_ACCOUNTS e das bolhas.
+    // O schema existe desde o BV-107, mas gravar contas exige cifrar a PII (accounts.*_enc e
+    // pii_data_key — ADR-0012) com o módulo `pii` do BV-109. O upsert de SEED_ACCOUNTS e das
+    // bolhas entra quando esse módulo estiver na main, usando as chaves de dev (`npm run keys:dev`).
     return { plan, tables, seeded: false };
   } finally {
     await client.end();
