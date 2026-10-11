@@ -3,6 +3,8 @@ import { NestFactory } from '@nestjs/core';
 import { PinoNestLogger } from '@bolha/observability/node';
 import { loadDotEnv, parseWorkerEnv } from './config/env.js';
 import { createWorkerLogger } from './observability/observability.js';
+import { WORKER_SECRET_NAMES } from './config/secret-names.js';
+import { resolveSecrets } from './config/secrets.js';
 import { WorkerModule } from './worker.module.js';
 
 /**
@@ -15,7 +17,8 @@ import { WorkerModule } from './worker.module.js';
 async function bootstrap(): Promise<void> {
   // Valida o ambiente antes de subir (o env tipado passa a ser injetado com as filas BullMQ).
   loadDotEnv();
-  const env = parseWorkerEnv();
+  // Segredos: em produção podem vir do secret manager (BV-110, gestao-segredos.md).
+  const env = parseWorkerEnv(await resolveSecrets(WORKER_SECRET_NAMES));
   const app = await NestFactory.createApplicationContext(WorkerModule, { bufferLogs: true });
   app.useLogger(new PinoNestLogger(createWorkerLogger(env)));
   app.enableShutdownHooks();

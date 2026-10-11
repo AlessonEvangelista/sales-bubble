@@ -1,0 +1,105 @@
+# Release (BV-106 / EN-026) — pipeline-ci-cd.md §7: versão única do produto (vMAJOR.MINOR.PATCH)
+# derivada dos Conventional Commits pelo release-please, para o monorepo em 003-project/.
+#
+# Fluxo: push em main → release-please abre/atualiza o PR de release (versão em
+# 003-project/package.json + 003-project/CHANGELOG.md) → merge do PR → tag vX.Y.Z + GitHub Release
+# → deploy-production.yml (aprovação manual no environment `production`).
+#
+# Token: com o GITHUB_TOKEN padrão, o PR de release não dispara o CI e a GitHub Release não dispara
+# outros workflows (proteção do GitHub contra recursão). Por isso:
+#   - recomenda-se o segredo RELEASE_PLEASE_TOKEN (GitHub App ou PAT fine-grained com contents e
+#     pull-requests: write) — HITL; com ele o CI roda no PR de release e o evento
+#     `release: published` dispara o deploy sozinho;
+#   - sem ele, o job `trigger-deploy` dispara deploy-production.yml via workflow_dispatch na tag
+#     (exceção permitida ao GITHUB_TOKEN). Nunca as duas coisas: evita deploy duplicado.
+name: Release
+
+on:
+  push:
+    branches: [main]
+  workflow_dispatch:
+
+permissions: {}
+
+concurrency:
+  group: release-please
+  cancel-in-progress: false
+
+jobs:
+  release-please:
+    name: release-please (PR de versão / tag)
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    permissions:
+      contents: write
+      pull-requests: write
+      issues: write # rótulos "autorelease: pending/tagged"
+    outputs:
+      release_created: ${{ steps.release.outputs['003-project--release_created'] }}
+      tag_name: ${{ steps.release.outputs['003-project--tag_name'] }}
+      version: ${{ steps.release.outputs['003-project--version'] }}
+    steps:
+      - uses: googleapis/release-please-action@v5
+        id: release
+        with:
+          token: ${{ secrets.RELEASE_PLEASE_TOKEN || github.token }}
+          config-file: release-please-config.json
+          manifest-file: .release-please-manifest.json
+      - name: Resumo
+        env:
+          CREATED: ${{ steps.release.outputs['003-project--release_created'] }}
+          TAG: ${{ steps.release.outputs['003-project--tag_name'] }}
+        run: |
+          if [ "$CREATED" = "true" ]; then
+            echo "### Release $TAG criada" >> "$GITHUB_STEP_SUMMARY"
+          else
+            echo "### Nenhuma release criada (PR de release aberto/atualizado, se houver mudanças)" >> "$GITHUB_STEP_SUMMARY"
+          fi
+
+  trigger-deploy:
+    name: Disparar deploy de produção
+    needs: release-please
+    if: needs.release-please.outputs.release_created == 'true'
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    permissions:
+      actions: write
+    steps:
+      - name: workflow_dispatch de deploy-production.yml na tag
+        env:
+          GH_TOKEN: ${{ github.token }}
+          TAG: ${{ needs.release-please.outputs.tag_name }}
+          HAS_RELEASE_TOKEN: ${{ secrets.RELEASE_PLEASE_TOKEN != '' }}
+        run: |
+          if [ "$HAS_RELEASE_TOKEN" = "true" ]; then
+            echo "Release criada com RELEASE_PLEASE_TOKEN: o evento release:published já dispara o deploy."
+            exit 0
+          fi
+          gh workflow run deploy-production.yml --repo "$GITHUB_REPOSITORY" --ref "$TAG"
+          echo "deploy-production.yml disparado para $TAG (aguarda aprovação no environment production)." >> "$GITHUB_STEP_SUMMARY"
+
+  back-merge:
+    # pipeline-ci-cd.md §7: depois da release, main volta para develop por PR automático.
+    # Hoje o repositório só tem main (REPO_MAP); o job fica inerte até develop existir.
+    name: Back-merge main → develop
+    needs: release-please
+    if: needs.release-please.outputs.release_created == 'true'
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    permissions:
+      contents: read
+      pull-requests: write
+    steps:
+      - name: Abrir PR main → develop
+        env:
+          GH_TOKEN: ${{ github.token }}
+          TAG: ${{ needs.release-please.outputs.tag_name }}
+        run: |
+          if ! gh api "repos/$GITHUB_REPOSITORY/branches/develop" --silent 2>/dev/null; then
+            echo "Branch develop não existe: back-merge desnecessário."
+            exit 0
+          fi
+          gh pr create --repo "$GITHUB_REPOSITORY" --base develop --head main \
+            --title "chore(release): back-merge $TAG para develop" \
+            --body "Back-merge automático após a release $TAG (pipeline-ci-cd.md §7)." \
+            || echo "::warning::PR de back-merge não criado (já existe ou não há diferença)."

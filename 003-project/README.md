@@ -155,7 +155,79 @@ script, o passo emite o aviso **"Gate pendente"** e passa; quando a tarefa criar
 o gate passa a bloquear sem editar o workflow. Exceções de licença ficam em `tools/ci/check-licenses.mjs`;
 de vulnerabilidade, em `osv-scanner.toml` (e no registro `.security/exceptions.yaml`).
 
-### Ainda não incluído (tarefas seguintes da S1)
+## 🔌 Portas do core-domain e fakes (BV-112)
 
-- **BV-107** — schema Prisma e migrations (`db:migrate`, `db:migrate:create`, `db:deploy`, `db:reset`) e a
-  gravação real dos dados do seed; **BV-111** — conteúdo do pacote `contracts`.
+Portas (interfaces) que o domínio usa para falar com o mundo externo — os adapters reais ficam em
+`packages/database` e `apps/*` (guia §2.2, ADR-0001). Tudo em `packages/core-domain/src`:
+
+| Porta / tipo | Onde | Base | Fake (`@bolha/core-domain/testing`) |
+| :--- | :--- | :--- | :--- |
+| `Clock`, `IdGenerator` | `shared/` | guia §5.4 | `FixedClock` (`advance`/`set`), `SequentialIdGenerator` (UUID formato v7) |
+| `UnitOfWork<TScope>`, `EventRecorder`, `DomainEvent` | `shared/` | guia §2.1, §7 | `InMemoryUnitOfWork` (commit/rollback, `failNextCommit`), `InMemoryEventRecorder` (outbox em memória) |
+| `Result`/`ok`/`err`, `DomainError`, `DomainInvariantViolation`, `Money` (centavos `bigint`) | `shared/` | guia §5.3–§5.4 | — |
+| `PaymentPort` = `CardPaymentPort` + `PixPaymentPort` + `PaymentCancellationPort` + `PayoutPort` + `ChargeQueryPort`; `paymentIdempotencyKeys` | `payment/` | ADR-0003 | `FakePaymentPort` (pré-autorização/captura parcial, Pix com estorno da diferença, void, refund, repasse, fetch-back, idempotência, `declineNext`/`failNextWithOutage`, `FAKE_CARD_TOKENS`, `orphanAuthorizations()`) |
+| `CnpjPort` + objeto de valor `Cnpj` (DV local, numérico e alfanumérico) | `identity/` | ADR-0008 | `FakeCnpjPort` (situação por CNPJ, `NOT_FOUND`, `failNextWithUnavailable`) |
+| `Notifier` + `notificationDedupeKey` | `notification/` | Spec F11 | `RecordingNotifier` (dedupe por chave, `failNext`) |
+
+```ts
+import { Money, paymentIdempotencyKeys } from '@bolha/core-domain';
+import { FakePaymentPort, FixedClock } from '@bolha/core-domain/testing';
+
+const clock = new FixedClock('2026-10-01T12:00:00Z');
+const payments = new FakePaymentPort({ clock });
+await payments.authorizeCard({ amount: Money.ofCents(12990), cardToken: 'tok', idempotencyKey: paymentIdempotencyKeys.pay(id), customerRef: accountId });
+```
+
+Recusas do gateway e CNPJ não encontrado/indisponível são valores (`Result`); indisponibilidade do
+gateway é exceção (`PaymentGatewayUnavailableError`). Os fakes também servem ao modo
+`PAYMENT_PROVIDER=fake` / `CNPJ_PROVIDER=fake` de dev.
+
+## 🔐 Criptografia de PII (BV-109)
+
+Módulo `@bolha/database/pii` ([README](packages/database/src/pii/README.md)), conforme ADR-0012:
+AES-256-GCM em coluna com DEK por conta cifrada pela KEK do KMS (*envelope encryption*, nonce de 96
+bits aleatório, AAD `tabela:coluna:id`, formato versionado), HMAC-SHA256 com *pepper* versionado para
+busca/unicidade, e a porta `KeyProvider` com o adapter local (`PII_DATA_KEY_BASE64`/`PII_HMAC_KEY_BASE64`
+de `npm run keys:dev`) e o esqueleto do adapter de KMS em nuvem (provedor a definir no BV-104).
+
+```ts
+import { createPiiCryptoFromEnv } from '@bolha/database/pii';
+const { cipher, blindIndex } = createPiiCryptoFromEnv(process.env);
+```
+
+Testes: `npx turbo run test --filter=@bolha/database` (round-trip, IV único, adulteração, AAD, rotação de
+KEK e de *pepper*, vetores NIST/RFC 4231, ausência de PII/chaves em erros e serialização).
+
+## Release e deploy de produção (BV-106)
+
+Conforme [pipeline-ci-cd.md §4–§8](../002-llm/002%20Docs/06-engenharia/pipeline-ci-cd.md#7-versionamento-semântico-e-changelog):
+
+- **Versão única do produto** (`vMAJOR.MINOR.PATCH` para api, worker e web), derivada dos Conventional Commits
+  pelo **release-please**: `feat` → MINOR, `fix` → PATCH, `!`/`BREAKING CHANGE:` → MAJOR; antes do go-live a
+  linha é `0.x` (`bump-minor-pre-major`). Configuração na raiz do repositório:
+  [`release-please-config.json`](../release-please-config.json) e
+  [`.release-please-manifest.json`](../.release-please-manifest.json) (pacote `003-project`, tag sem componente).
+  A versão fica em `003-project/package.json` e o histórico em `003-project/CHANGELOG.md` (gerado).
+- [`.github/workflows/release-please.yml`](../.github/workflows/release-please.yml) (push em `main`): abre/atualiza
+  o PR de release; o merge cria a tag `vX.Y.Z` + GitHub Release e dispara o deploy de produção. Também abre o
+  PR de back-merge `main → develop` quando `develop` existir.
+- [`.github/workflows/deploy-production.yml`](../.github/workflows/deploy-production.yml) (**esqueleto**): release
+  publicada ou `workflow_dispatch` numa tag → valida tag e janela → **promove por digest** as imagens que o CD de
+  staging (BV-105) já publicou para o commit da tag (`ghcr.io/<owner>/bolha-<app>:sha-<7>`; só adiciona a tag de
+  versão, sem rebuild) → confere staging → **migrations** em job próprio → deploy gradual da api
+  (Cloud Run `--no-traffic --tag candidate` + `update-traffic` 10% → 50% → 100%), worker rolling, smoke e
+  observação, **rollback** automático para a revisão anterior. Os jobs `migrate` e `deploy` usam o environment
+  `production` (aprovação manual pelos revisores obrigatórios).
+- Janela de deploy: `tools/deploy/check-window.mjs` (seg–qui, 10h–16h BRT, sem feriado nacional nem véspera;
+  fora dela só com `override_window` + justificativa). Testes: `npm run test:deploy`.
+
+Configuração no GitHub (pendente — HITL):
+
+| Item | Onde | Valor |
+| :--- | :--- | :--- |
+| Environment `production` | Settings → Environments | revisores obrigatórios (Tech Lead ou PO + DevOps); tags `v*` apenas |
+| `DEPLOY_PLATFORM` | variável do repositório | `cloudrun` ou `railway` (BV-104). Vazia = workflow só valida e avisa "Deploy pendente" |
+| `CLOUD_RUN_REGION`, `CLOUD_RUN_API_SERVICE`, `CLOUD_RUN_WORKER_SERVICE`, `CLOUD_RUN_MIGRATE_JOB` | variáveis (Cloud Run) | região; padrões `bolha-api`, `bolha-worker`, `bolha-migrate` |
+| `PRODUCTION_URL`, `PRODUCTION_API_URL` / `STAGING_API_URL` | variáveis dos environments | URLs públicas (smoke em `/api/v1/health/ready`) |
+| `RELEASE_PLEASE_TOKEN` | segredo (opcional, recomendado) | GitHub App/PAT para o CI rodar no PR de release; sem ele o deploy é disparado por `workflow_dispatch` |
+| OIDC na nuvem | `.github/actions/oidc-cloud-auth` | composite action do BV-110 (sem chave de longa duração) |

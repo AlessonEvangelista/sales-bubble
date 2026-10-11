@@ -23,7 +23,11 @@ async function main(): Promise<void> {
       `Plano: ${result.plan.accounts} contas e ${result.plan.bubbles} bolhas.`,
   );
   if (!result.seeded) {
-    console.log('[db:seed] Schema ainda não existe (BV-107/EN-027): nenhum dado gravado.');
+    console.log(
+      result.tables === 0
+        ? '[db:seed] Schema ainda não existe: rode `npm run db:deploy`. Nenhum dado gravado.'
+        : '[db:seed] Gravação dos dados aguarda o módulo de cripto de PII (BV-109). Nenhum dado gravado.',
+    );
   }
 }
 
