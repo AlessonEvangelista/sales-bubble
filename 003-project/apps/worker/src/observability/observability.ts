@@ -1,15 +1,13 @@
 import { Module, type OnApplicationShutdown } from '@nestjs/common';
 import {
   createLogger,
-  flushSentry,
-  initSentry,
   shutdownTelemetry,
   type DestinationStream,
   type Logger,
 } from '@bolha/observability/node';
 import type { WorkerEnv } from '../config/env.js';
 
-type ObservabilityEnv = Pick<WorkerEnv, 'APP_ENV' | 'APP_VERSION' | 'LOG_LEVEL' | 'SENTRY_DSN'>;
+type ObservabilityEnv = Pick<WorkerEnv, 'APP_ENV' | 'APP_VERSION' | 'LOG_LEVEL'>;
 
 /** Logger JSON do worker (slo-observabilidade.md §5), com redaction de PII. */
 export function createWorkerLogger(env: ObservabilityEnv, destination?: DestinationStream): Logger {
@@ -19,20 +17,10 @@ export function createWorkerLogger(env: ObservabilityEnv, destination?: Destinat
   );
 }
 
-/** Sentry de erros do worker (só com `SENTRY_DSN`; ver `@bolha/observability/node`). */
-export function initWorkerSentry(env: ObservabilityEnv): boolean {
-  return initSentry({
-    dsn: env.SENTRY_DSN,
-    environment: env.APP_ENV,
-    release: env.APP_VERSION,
-    service: 'bolha-worker',
-  });
-}
-
-/** Faz o flush de spans, métricas e eventos do Sentry no desligamento (SIGTERM). */
+/** Faz o flush de spans e métricas no desligamento (SIGTERM). */
 @Module({})
 export class ObservabilityModule implements OnApplicationShutdown {
   async onApplicationShutdown(): Promise<void> {
-    await Promise.allSettled([flushSentry(), shutdownTelemetry()]);
+    await shutdownTelemetry();
   }
 }

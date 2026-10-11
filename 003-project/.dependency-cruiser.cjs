@@ -164,7 +164,7 @@ module.exports = {
       name: 'web-observability-browser-only',
       severity: 'error',
       comment:
-        'apps/web usa só a entrada pura de @bolha/observability (redaction); a parte Node (OTel SDK, pino, Sentry Node) é de api/worker — BV-108.',
+        'apps/web usa só a entrada pura de @bolha/observability (redaction); a parte Node (OTel SDK, pino) é de api/worker — BV-108.',
       from: { path: '^apps/web/' },
       to: {
         path: [

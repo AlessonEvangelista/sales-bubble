@@ -76,7 +76,7 @@ Documentação dos SLOs: autores (Tech Lead + DevOps/SRE), revisores (Backend s�
 - Atributos de recurso: `service.name` (`bolha-api` | `bolha-worker` | `bolha-web`), `service.version` (= `APP_VERSION`), `deployment.environment`, `service.instance.id`.
 - Exportação OTLP para um **OpenTelemetry Collector** (processadores: `batch`, `memory_limiter`, `attributes/delete` para remover PII que escape, `tail_sampling`). Métricas com temporalidade **delta** quando o backend for SigNoz.
 - Amostragem de traces: 100% em staging; em produção `parentbased_traceidratio` 10% + tail sampling que mantém **100% dos traces com erro** e dos de `POST /quotas`, `POST /webhooks/*`, `bubble-expire` acima de 1 s.
-- Front: `instrumentation-client.ts` do Next.js inicializa Sentry (erros + traces de navegação) e o coletor de RUM; envio por `navigator.sendBeacon` para `POST /api/v1/rum`.
+- Front: `instrumentation-client.ts` do Next.js inicializa Sentry (erros + traces de navegação) e o coletor de RUM; *(Sentry adiado — ver nota na §5)* envio por `navigator.sendBeacon` para `POST /api/v1/rum`.
 
 ### 4.2 Spans customizados obrigatórios
 
@@ -138,6 +138,8 @@ Regra: atributos de métrica têm **cardinalidade baixa**. `bubble.id` e `accoun
 - Defesa em camadas: `redact` do pino (`req.headers.authorization`, `req.headers.cookie`, `*.cpf`, `*.cnpj`, `*.email`, `*.document`, `*.password`, `*.card*`, `body` de rotas `/auth/*` e `/webhooks/*`) → processador do Collector que remove atributos com nomes sensíveis → **teste de contrato** no CI que exercita cadastro, login e webhook e falha se algum padrão de CPF/CNPJ/e-mail aparecer na saída de log.
 - Níveis: `error` (ação necessária), `warn` (degradação tratada), `info` (eventos de negócio e de ciclo de vida), `debug` só fora de produção. Retenção: 30 dias quente, 180 dias frio para logs de auditoria técnica; `audit_log` (banco) segue a política de retenção do plano LGPD.
 - Sentry: `sendDefaultPii: false`, `beforeSend` remove `request.data` e cookies.
+
+> **Nota:** Captura de erros (Sentry) adiada por decisão do usuário (BV-108, 2026-10-10) — será tratada em ticket próprio.
 
 ---
 

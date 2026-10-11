@@ -9,7 +9,6 @@ import { trace } from '@opentelemetry/api';
 import { catchError, throwError, type Observable } from 'rxjs';
 import type { Logger } from './logger.js';
 import { REQUEST_ID_HEADER, resolveRequestId, runWithRequestContext } from './request-context.js';
-import { captureError } from './sentry.js';
 
 /**
  * Adaptador do logger pino para o `LoggerService` do NestJS: os logs do framework
@@ -127,7 +126,7 @@ export function requestContextMiddleware(logger: Logger) {
 
 /**
  * Interceptor global: erros inesperados (não-`HttpException` ou status ≥ 500) vão para o log
- * (`http.request.failed`) e para o Sentry (com `trace_id`), e seguem para o tratamento padrão
+ * (`http.request.failed`, com `trace_id`/`span_id` do contexto), e seguem para o tratamento padrão
  * do Nest (o mapeamento RFC 9457 é do BV-111). Erros 4xx de regra de negócio não alertam.
  */
 export class ErrorReportingInterceptor implements NestInterceptor {
@@ -142,7 +141,6 @@ export class ErrorReportingInterceptor implements NestInterceptor {
             { event: 'http.request.failed', err: error, handler: context.getHandler().name },
             'unhandled error',
           );
-          captureError(error, { handler: context.getHandler().name });
         }
         return throwError(() => error);
       }),

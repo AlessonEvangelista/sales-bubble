@@ -6,8 +6,6 @@ import {
   redactAttributes,
   redactDeep,
   redactString,
-  scrubBreadcrumb,
-  scrubErrorEvent,
 } from './index.js';
 
 // Dados fictícios (CPF/CNPJ com dígito verificador válido, gerados para teste).
@@ -170,47 +168,5 @@ describe('redactAttributes (spans)', () => {
       'http.response.status_code': 200,
       tags: [`a ${REDACTED}`, 'b'],
     });
-  });
-});
-
-describe('scrubErrorEvent / scrubBreadcrumb (Sentry)', () => {
-  it('remove corpo, cookies, query string, cabeçalhos e PII do evento', () => {
-    const event = scrubErrorEvent({
-      message: `falhou para ${EMAIL}`,
-      request: {
-        url: `https://api.bolha/api/v1/accounts?cpf=${CPF}`,
-        method: 'POST',
-        data: { password: 'segredo', document: CPF },
-        cookies: { bv_rt: 'refresh-token' },
-        query_string: `cpf=${CPF}`,
-        headers: {
-          Authorization: `Bearer ${JWT}`,
-          Cookie: 'bv_rt=refresh-token',
-          'content-type': 'application/json',
-          'x-request-id': 'req-1',
-        },
-      },
-      user: { id: 'u-1', email: EMAIL, ip_address: '200.10.20.30', username: 'maria' },
-      extra: { payload: { email: EMAIL, cnpj: CNPJ } },
-      contexts: { trace: { trace_id: '4bf92f3577b34da6a3ce929d0e0e4736' } },
-      breadcrumbs: [{ message: `login ${EMAIL}`, data: { url: '/x?token=abc' } }],
-      exception: { values: [{ type: 'Error', value: `CPF ${CPF} inválido` }] },
-    });
-    const serialized = JSON.stringify(event);
-    expect(findPii(serialized)).toEqual([]);
-    expect(serialized).not.toMatch(/segredo|refresh-token|200\.10\.20\.30|maria"/);
-    expect(event.request).toEqual({
-      url: 'https://api.bolha/api/v1/accounts',
-      method: 'POST',
-      headers: { 'content-type': 'application/json', 'x-request-id': 'req-1' },
-    });
-    expect(event.user).toEqual({ id: 'u-1' });
-    expect(event.contexts).toEqual({ trace: { trace_id: '4bf92f3577b34da6a3ce929d0e0e4736' } });
-  });
-
-  it('breadcrumb sem PII e URL sem query string', () => {
-    expect(
-      scrubBreadcrumb({ message: `GET para ${EMAIL}`, data: { url: '/a?email=x', status: 200 } }),
-    ).toEqual({ message: `GET para ${REDACTED}`, data: { url: '/a', status: 200 } });
   });
 });

@@ -84,7 +84,6 @@ beforeAll(async () => {
     APP_ENV: 'ci',
     APP_VERSION: 'test',
     LOG_LEVEL: 'debug',
-    SENTRY_DSN: undefined,
   } as const;
   setupObservability(app, env, createApiLogger(env, destination));
   app.setGlobalPrefix('api/v1');

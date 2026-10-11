@@ -2,7 +2,7 @@ import { existsSync } from 'node:fs';
 import { resolve } from 'node:path';
 import { z } from 'zod';
 
-/** String vazia (`SENTRY_DSN=` no .env) conta como ausente. */
+/** String vazia (ex.: `OTEL_EXPORTER_OTLP_ENDPOINT=` no .env) conta como ausente. */
 const emptyAsUndefined = (value: unknown): unknown => (value === '' ? undefined : value);
 const optionalUrl = z.preprocess(emptyAsUndefined, z.url({ protocol: /^https?$/ }).optional());
 const booleanFlag = (fallback: boolean) =>
@@ -27,11 +27,10 @@ export const apiEnvSchema = z.object({
   DATABASE_URL: z.url({ protocol: /^postgres(ql)?$/ }),
   REDIS_URL: z.url({ protocol: /^rediss?$/ }),
   // --- Observabilidade (BV-108, slo-observabilidade.md §4–5). Todas opcionais, default seguro:
-  // sem endpoint OTLP a telemetria fica desligada; sem DSN o Sentry fica desligado.
+  // sem endpoint OTLP a telemetria fica desligada.
   OTEL_EXPORTER_OTLP_ENDPOINT: optionalUrl,
   OTEL_SDK_DISABLED: booleanFlag(false),
   OTEL_METRIC_EXPORT_INTERVAL: z.coerce.number().int().min(1_000).default(60_000),
-  SENTRY_DSN: optionalUrl,
 });
 
 export type ApiEnv = z.infer<typeof apiEnvSchema>;

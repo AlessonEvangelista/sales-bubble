@@ -10,11 +10,8 @@ import {
 import { afterAll, beforeAll, beforeEach, describe, expect, it } from 'vitest';
 import { findPii, REDACTED } from '../index.js';
 import {
-  captureError,
   consumeWithTraceContext,
   createLogger,
-  flushSentry,
-  initSentry,
   RedactingSpanProcessor,
   resolveRequestId,
   runWithRequestContext,
@@ -212,42 +209,5 @@ describe('startTelemetry', () => {
     });
     expect(handle.enabled).toBe(false);
     await handle.shutdown();
-  });
-});
-
-describe('Sentry (Node)', () => {
-  it('sem DSN não inicializa e captureError é no-op', () => {
-    expect(initSentry({ environment: 'ci', release: 'dev', service: 'bolha-api' })).toBe(false);
-    expect(() => captureError(new Error('x'))).not.toThrow();
-  });
-
-  it('com DSN, o evento enviado não contém PII e leva o trace_id', async () => {
-    const envelopes: string[] = [];
-    initSentry({
-      dsn: 'https://public@o0.ingest.sentry.example/1',
-      environment: 'ci',
-      release: '1.2.3',
-      service: 'bolha-api',
-      transport: () => ({
-        send: (envelope) => {
-          envelopes.push(JSON.stringify(envelope));
-          return Promise.resolve({ statusCode: 200 });
-        },
-        flush: () => Promise.resolve(true),
-      }),
-    });
-
-    let traceId = '';
-    tracer().startActiveSpan('POST /api/v1/accounts', (span) => {
-      traceId = span.spanContext().traceId;
-      captureError(new Error(`cadastro falhou para ${EMAIL} (CPF ${CPF})`), { route: 'accounts' });
-      span.end();
-    });
-    await flushSentry();
-
-    const sent = envelopes.join('\n');
-    expect(sent).toContain('cadastro falhou para');
-    expect(findPii(sent)).toEqual([]);
-    expect(sent).toContain(traceId);
   });
 });

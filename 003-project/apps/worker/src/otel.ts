@@ -10,7 +10,7 @@ import { loadDotEnv, workerEnvSchema } from './config/env.js';
 // Hooks de ESM do OpenTelemetry (import-in-the-middle): necessários porque o app é ESM.
 register('@opentelemetry/instrumentation/hook.mjs', import.meta.url);
 
-// Import dinâmico DEPOIS do register: nada de framework (Nest, pino, Sentry) é carregado antes
+// Import dinâmico DEPOIS do register: nada de framework (Nest, pino) é carregado antes
 // das instrumentações. `@bolha/observability/telemetry` só depende do OpenTelemetry.
 const { startTelemetry } = await import('@bolha/observability/telemetry');
 

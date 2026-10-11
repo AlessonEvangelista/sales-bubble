@@ -1,10 +1,9 @@
 /**
- * Redaction de PII em logs, atributos de span e eventos do Sentry (ADR-0012 item 4;
+ * Redaction de PII em logs, atributos de span e eventos de telemetria (ADR-0012 item 4;
  * slo-observabilidade.md §5; threat model TM-13 / SEC-05).
  *
  * Módulo PURO (sem dependências e sem APIs do Node): é usado pela api e pelo worker
- * (logger pino, processador de spans, `beforeSend` do Sentry) e também pelo `apps/web`
- * (`beforeSend` do `@sentry/nextjs`). Duas camadas, sempre juntas:
+ * (logger pino, processador de spans) e pode ser usado pelo `apps/web`. Duas camadas, sempre juntas:
  *
  * 1. **Por nome de campo** — qualquer chave sensível (e-mail, CPF, CNPJ, documento, telefone,
  *    nome, endereço, senha, tokens, Authorization, cookies, cartão, Idempotency-Key, segredos)
@@ -120,7 +119,7 @@ function normalizeKey(key: string): string {
   return key.toLowerCase().replace(/[^a-z0-9]/g, '');
 }
 
-/** `true` se o valor associado a esta chave nunca pode ir para log/span/Sentry. */
+/** `true` se o valor associado a esta chave nunca pode ir para log/span. */
 export function isSensitiveKey(key: string): boolean {
   const normalized = normalizeKey(key);
   if (normalized.length === 0 || SAFE_KEYS.has(normalized)) return false;
@@ -311,104 +310,4 @@ function isSensitiveAttributeName(key: string): boolean {
     lower === 'user_agent.original' ||
     lower === 'http.user_agent'
   );
-}
-
-/**
- * Forma mínima de um evento de erro (compatível com `ErrorEvent` do Sentry, sem depender do
- * SDK). Só os campos que podem carregar PII são tipados.
- */
-export interface ScrubbableErrorEvent {
-  message?: string | undefined;
-  request?:
-    | {
-        url?: string | undefined;
-        data?: unknown;
-        cookies?: unknown;
-        headers?: Record<string, string> | undefined;
-        query_string?: unknown;
-        env?: unknown;
-        [key: string]: unknown;
-      }
-    | undefined;
-  user?: { id?: string | number | undefined; [key: string]: unknown } | undefined;
-  extra?: Record<string, unknown> | undefined;
-  contexts?: Record<string, unknown> | undefined;
-  tags?: Record<string, unknown> | undefined;
-  breadcrumbs?: unknown[] | undefined;
-  exception?: { values?: { value?: string | undefined; [key: string]: unknown }[] } | undefined;
-  [key: string]: unknown;
-}
-
-const SAFE_REQUEST_HEADERS = new Set(['content-type', 'accept', 'x-request-id', 'traceparent']);
-
-/**
- * `beforeSend` do Sentry (api, worker e web): remove corpo da requisição, cookies, query string
- * e cabeçalhos não allowlistados; reduz `user` ao id técnico; mascara PII em mensagens,
- * exceções, breadcrumbs, `extra`, `contexts` e `tags` (slo-observabilidade.md §5).
- */
-export function scrubErrorEvent<T extends object>(event: T): T {
-  const scrubbed = { ...event } as ScrubbableErrorEvent;
-
-  if (scrubbed.request) {
-    const { url, headers, method } = scrubbed.request as {
-      url?: string;
-      headers?: Record<string, string>;
-      method?: unknown;
-    };
-    const safeHeaders: Record<string, string> = {};
-    for (const [name, value] of Object.entries(headers ?? {})) {
-      if (SAFE_REQUEST_HEADERS.has(name.toLowerCase())) safeHeaders[name] = value;
-    }
-    scrubbed.request = {
-      ...(url === undefined ? {} : { url: stripQuery(redactString(url)) }),
-      ...(method === undefined ? {} : { method }),
-      headers: safeHeaders,
-    };
-  }
-
-  if (scrubbed.user) {
-    scrubbed.user = scrubbed.user.id === undefined ? {} : { id: scrubbed.user.id };
-  }
-
-  if (typeof scrubbed.message === 'string') scrubbed.message = redactString(scrubbed.message);
-  for (const field of ['extra', 'contexts', 'tags', 'breadcrumbs', 'exception'] as const) {
-    if (scrubbed[field] !== undefined) {
-      (scrubbed as Record<string, unknown>)[field] = redactDeep(scrubbed[field]);
-    }
-  }
-  return scrubbed as T;
-}
-
-/** Breadcrumb do Sentry sem PII (mensagem e `data` mascarados; URLs sem query string). */
-export function scrubBreadcrumb<T extends object>(breadcrumb: T): T {
-  const scrubbed = redactDeep(breadcrumb);
-  const data = (scrubbed as { data?: unknown }).data as Record<string, unknown> | undefined;
-  if (data && typeof data.url === 'string') data.url = stripQuery(data.url);
-  return scrubbed;
-}
-
-function stripQuery(url: string): string {
-  const index = url.search(/[?#]/);
-  return index === -1 ? url : url.slice(0, index);
-}
-
-/**
- * `dataCollection` do Sentry (v11, substitui o antigo `sendDefaultPii`) no modo mais restritivo:
- * sem identidade do usuário (IP), cookies, cabeçalhos, corpos, query string, dados de consulta
- * nem variáveis de stack frame. O `beforeSend` ({@link scrubErrorEvent}) continua como segunda
- * barreira. Tipado estruturalmente para não depender do SDK (é usado também pelo browser).
- */
-export function sentryDataCollection() {
-  return {
-    userInfo: false,
-    cookies: false,
-    httpHeaders: { request: { allow: [...SAFE_REQUEST_HEADERS] }, response: false },
-    httpBodies: [] as never[],
-    urlQueryParams: false,
-    graphQL: { document: false, variables: false },
-    genAI: { inputs: false, outputs: false },
-    databaseQueryData: false,
-    queues: false,
-    stackFrameVariables: false,
-  };
 }

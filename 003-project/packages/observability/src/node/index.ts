@@ -1,6 +1,6 @@
 /**
  * `@bolha/observability/node` — observabilidade dos processos Node (api e worker), BV-108:
- * OpenTelemetry (traces + métricas, OTLP), logger pino estruturado sem PII, Sentry de erros,
+ * OpenTelemetry (traces + métricas, OTLP), logger pino estruturado sem PII,
  * propagação de contexto HTTP → fila → worker e adaptadores NestJS.
  * Não importar no `apps/web` (regra de fronteira `web-observability-browser-only`).
  */
@@ -21,7 +21,6 @@ export {
   type LoggerConfig,
   type LogLevel,
 } from './logger.js';
-export { initSentry, captureError, flushSentry, type SentryConfig } from './sentry.js';
 export {
   withTraceContext,
   consumeWithTraceContext,
