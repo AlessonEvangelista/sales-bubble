@@ -155,6 +155,22 @@ script, o passo emite o aviso **"Gate pendente"** e passa; quando a tarefa criar
 o gate passa a bloquear sem editar o workflow. Exceções de licença ficam em `tools/ci/check-licenses.mjs`;
 de vulnerabilidade, em `osv-scanner.toml` (e no registro `.security/exceptions.yaml`).
 
+## 🔐 Criptografia de PII (BV-109)
+
+Módulo `@bolha/database/pii` ([README](packages/database/src/pii/README.md)), conforme ADR-0012:
+AES-256-GCM em coluna com DEK por conta cifrada pela KEK do KMS (*envelope encryption*, nonce de 96
+bits aleatório, AAD `tabela:coluna:id`, formato versionado), HMAC-SHA256 com *pepper* versionado para
+busca/unicidade, e a porta `KeyProvider` com o adapter local (`PII_DATA_KEY_BASE64`/`PII_HMAC_KEY_BASE64`
+de `npm run keys:dev`) e o esqueleto do adapter de KMS em nuvem (provedor a definir no BV-104).
+
+```ts
+import { createPiiCryptoFromEnv } from '@bolha/database/pii';
+const { cipher, blindIndex } = createPiiCryptoFromEnv(process.env);
+```
+
+Testes: `npx turbo run test --filter=@bolha/database` (round-trip, IV único, adulteração, AAD, rotação de
+KEK e de *pepper*, vetores NIST/RFC 4231, ausência de PII/chaves em erros e serialização).
+
 ## Release e deploy de produção (BV-106)
 
 Conforme [pipeline-ci-cd.md §4–§8](../002-llm/002%20Docs/06-engenharia/pipeline-ci-cd.md#7-versionamento-semântico-e-changelog):
@@ -188,8 +204,3 @@ Configuração no GitHub (pendente — HITL):
 | `PRODUCTION_URL`, `PRODUCTION_API_URL` / `STAGING_API_URL` | variáveis dos environments | URLs públicas (smoke em `/api/v1/health/ready`) |
 | `RELEASE_PLEASE_TOKEN` | segredo (opcional, recomendado) | GitHub App/PAT para o CI rodar no PR de release; sem ele o deploy é disparado por `workflow_dispatch` |
 | OIDC na nuvem | `.github/actions/oidc-cloud-auth` | composite action do BV-110 (sem chave de longa duração) |
-
-### Ainda não incluído (tarefas seguintes da S1)
-
-- **BV-107** — schema Prisma e migrations (`db:migrate`, `db:migrate:create`, `db:deploy`, `db:reset`) e a
-  gravação real dos dados do seed; **BV-111** — conteúdo do pacote `contracts`.
