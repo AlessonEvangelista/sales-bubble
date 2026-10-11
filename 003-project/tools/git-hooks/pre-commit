@@ -1,0 +1,25 @@
+#!/bin/sh
+# Hook local OPCIONAL de pre-commit (BV-110 / SEC-10). Ative com `npm run hooks:install`.
+#
+# Roda o gitleaks com a configuração do projeto (.gitleaks.toml na raiz do repositório) só sobre
+# o que está staged. Se o gitleaks não estiver instalado, avisa e deixa o commit seguir: o gate
+# que bloqueia de verdade é o job "Segurança" do CI. Instalação do gitleaks e o que fazer com um
+# achado: 002-llm/002 Docs/08-seguranca-compliance/gestao-segredos.md §4.
+#
+# Pular uma vez (ex.: falso positivo já registrado): SKIP_GITLEAKS=1 git commit ...
+
+if [ "${SKIP_GITLEAKS:-0}" = "1" ]; then
+  echo "[pre-commit] gitleaks pulado (SKIP_GITLEAKS=1)."
+  exit 0
+fi
+
+GITLEAKS="${GITLEAKS_BIN:-gitleaks}"
+if ! command -v "$GITLEAKS" >/dev/null 2>&1; then
+  echo "[pre-commit] gitleaks não instalado: varredura local de segredos pulada (o CI ainda bloqueia)."
+  echo "[pre-commit] instale: https://github.com/gitleaks/gitleaks#installing"
+  exit 0
+fi
+
+ROOT="$(git rev-parse --show-toplevel)"
+exec "$GITLEAKS" git --pre-commit --staged --redact --no-banner \
+  --config "$ROOT/.gitleaks.toml" "$ROOT"
