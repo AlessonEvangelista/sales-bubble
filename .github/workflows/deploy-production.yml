@@ -1,0 +1,403 @@
+# Deploy de produção (BV-106 / EN-026) — ESQUELETO. pipeline-ci-cd.md §4–§8.
+#
+# Gatilhos: GitHub Release publicada (tag vX.Y.Z criada pelo release-please) ou workflow_dispatch
+# numa tag (disparado por release-please.yml quando não há RELEASE_PLEASE_TOKEN, ou manualmente
+# para hotfix/redeploy — `override_window` + justificativa para fora da janela).
+#
+# Etapas:
+#   1. prepare        — valida a tag, resolve a plataforma (vars.DEPLOY_PLATFORM) e a janela.
+#   2. image          — promove as imagens JÁ CONSTRUÍDAS e testadas em staging (BV-105) pelo
+#                       digest do commit da tag: só adiciona a tag de versão no registry, sem
+#                       rebuild ("build uma vez por versão", §4).
+#   3. verify-staging — confere que staging roda esse mesmo digest e está saudável.
+#   4. migrate        — environment `production` (revisores obrigatórios = aprovação manual);
+#                       `prisma migrate deploy` em job separado ANTES de qualquer troca de tráfego (§5.1).
+#   5. deploy         — environment `production`; api gradual 0% → 10% → 50% → 100% com smoke e
+#                       observação; worker rolling; rollback automático para a revisão anterior (§6).
+#
+# Enquanto a plataforma não for escolhida (BV-104, HITL), vars.DEPLOY_PLATFORM fica vazia: o
+# workflow valida a tag e a janela, avisa "Deploy pendente" e não executa as etapas 2–5.
+# Autenticação na nuvem: OIDC via composite action do BV-110 (.github/actions/oidc-cloud-auth),
+# sem chave de longa duração.
+name: Deploy produção
+
+on:
+  release:
+    types: [published]
+  workflow_dispatch:
+    inputs:
+      override_window:
+        description: Ignorar a janela de deploy (só hotfix S1/S2)
+        type: boolean
+        default: false
+      justification:
+        description: Justificativa do override (incidente, severidade)
+        type: string
+        default: ''
+
+permissions: {}
+
+# Deploys nunca se cancelam: o próximo espera o atual terminar (§3).
+concurrency:
+  group: deploy-production
+  cancel-in-progress: false
+
+env:
+  # Convenção de imagens do CD de staging (BV-105): ghcr.io/<owner>/bolha-<app>:sha-<7 caracteres>.
+  REGISTRY: ghcr.io
+  IMAGE_PREFIX: bolha-
+  APPS: api worker
+  # Tempo máximo esperando o CD de staging publicar a imagem do commit da tag.
+  IMAGE_WAIT_MINUTES: '30'
+
+defaults:
+  run:
+    shell: bash
+
+jobs:
+  prepare:
+    name: Preparar (tag, plataforma, janela)
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    permissions:
+      contents: read
+    outputs:
+      tag: ${{ steps.tag.outputs.tag }}
+      version: ${{ steps.tag.outputs.version }}
+      short_sha: ${{ steps.tag.outputs.short_sha }}
+      platform: ${{ steps.platform.outputs.platform }}
+      enabled: ${{ steps.platform.outputs.enabled }}
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          persist-credentials: false
+      - name: Validar a tag
+        id: tag
+        env:
+          REF: ${{ github.ref }}
+          RELEASE_TAG: ${{ github.event.release.tag_name }}
+        run: |
+          TAG="${RELEASE_TAG:-${REF#refs/tags/}}"
+          if [ -z "$RELEASE_TAG" ] && [ "${REF#refs/tags/}" = "$REF" ]; then
+            echo "::error::Produção só recebe tags vX.Y.Z (ref atual: $REF). Rode o workflow_dispatch numa tag."
+            exit 1
+          fi
+          if ! [[ "$TAG" =~ ^v[0-9]+\.[0-9]+\.[0-9]+$ ]]; then
+            echo "::error::Tag fora do padrão vX.Y.Z: $TAG"
+            exit 1
+          fi
+          SHA="$(git rev-parse HEAD)"
+          {
+            echo "tag=$TAG"
+            echo "version=${TAG#v}"
+            echo "short_sha=${SHA:0:7}"
+          } >> "$GITHUB_OUTPUT"
+          echo "### Deploy de produção $TAG (commit ${SHA:0:7})" >> "$GITHUB_STEP_SUMMARY"
+      - name: Plataforma de contêiner
+        id: platform
+        env:
+          PLATFORM: ${{ vars.DEPLOY_PLATFORM }}
+        run: |
+          case "$PLATFORM" in
+            cloudrun|railway)
+              echo "enabled=true" >> "$GITHUB_OUTPUT" ;;
+            "")
+              echo "::warning title=Deploy pendente::vars.DEPLOY_PLATFORM não definida — plataforma ainda não escolhida (BV-104). Nada será implantado."
+              echo "enabled=false" >> "$GITHUB_OUTPUT" ;;
+            *)
+              echo "::error::vars.DEPLOY_PLATFORM inválida: '$PLATFORM' (use cloudrun ou railway)."
+              exit 1 ;;
+          esac
+          echo "platform=$PLATFORM" >> "$GITHUB_OUTPUT"
+      - if: steps.platform.outputs.enabled == 'true'
+        uses: actions/setup-node@v7
+        with:
+          node-version-file: 003-project/.nvmrc
+      - name: Janela de deploy (seg–qui, 10h–16h BRT, sem feriado/véspera)
+        if: steps.platform.outputs.enabled == 'true'
+        working-directory: 003-project
+        env:
+          OVERRIDE_WINDOW: ${{ inputs.override_window }}
+          OVERRIDE_JUSTIFICATION: ${{ inputs.justification }}
+        run: node tools/deploy/check-window.mjs
+
+  image:
+    name: Promover imagens (sem rebuild)
+    needs: prepare
+    if: needs.prepare.outputs.enabled == 'true'
+    runs-on: ubuntu-latest
+    timeout-minutes: 40
+    permissions:
+      contents: read
+      packages: write
+    outputs:
+      api: ${{ steps.promote.outputs.api }}
+      worker: ${{ steps.promote.outputs.worker }}
+    steps:
+      - uses: docker/setup-buildx-action@v4
+      - uses: docker/login-action@v4
+        with:
+          registry: ${{ env.REGISTRY }}
+          username: ${{ github.actor }}
+          password: ${{ github.token }}
+      - name: Resolver digest do commit e adicionar a tag de versão
+        id: promote
+        env:
+          SHORT_SHA: ${{ needs.prepare.outputs.short_sha }}
+          VERSION: ${{ needs.prepare.outputs.version }}
+        run: |
+          OWNER="${GITHUB_REPOSITORY_OWNER,,}"
+          for app in $APPS; do
+            REPO="$REGISTRY/$OWNER/$IMAGE_PREFIX$app"
+            SRC="$REPO:sha-$SHORT_SHA"
+            DIGEST=""
+            for _ in $(seq 1 "$IMAGE_WAIT_MINUTES"); do
+              if DIGEST="$(docker buildx imagetools inspect "$SRC" --format '{{json .Manifest.Digest}}' 2>/dev/null | tr -d '"')" && [ -n "$DIGEST" ]; then
+                break
+              fi
+              echo "Aguardando o CD de staging publicar $SRC..."
+              sleep 60
+            done
+            if [ -z "$DIGEST" ]; then
+              echo "::error::Imagem $SRC não encontrada: o commit da tag não passou pelo CD de staging (BV-105). Produção não faz rebuild."
+              exit 1
+            fi
+            # Só adiciona tags no registry: mesmo digest que rodou em staging.
+            docker buildx imagetools create --tag "$REPO:$VERSION" --tag "$REPO:v$VERSION" "$REPO@$DIGEST"
+            echo "$app=$REPO@$DIGEST" >> "$GITHUB_OUTPUT"
+            echo "- \`$app\`: \`$REPO@$DIGEST\` → \`$VERSION\`" >> "$GITHUB_STEP_SUMMARY"
+          done
+
+  verify-staging:
+    name: Verificar em staging
+    needs: [prepare, image]
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    environment: staging
+    permissions:
+      contents: read
+      id-token: write
+    # Composite actions não leem vars/secrets: a action OIDC (BV-110) lê estes valores do env do job.
+    env:
+      PLATFORM: ${{ needs.prepare.outputs.platform }}
+      GCP_WIF_PROVIDER: ${{ vars.GCP_WIF_PROVIDER }}
+      GCP_DEPLOY_SA: ${{ vars.GCP_DEPLOY_SA }}
+      GCP_PROJECT_ID: ${{ vars.GCP_PROJECT_ID }}
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          persist-credentials: false
+      - name: Autenticar na nuvem (OIDC, BV-110)
+        if: hashFiles('.github/actions/oidc-cloud-auth/action.yml') != ''
+        uses: ./.github/actions/oidc-cloud-auth
+        with:
+          railway-token: ${{ secrets.RAILWAY_TOKEN }} # só usado com platform=railway
+      - name: OIDC pendente
+        if: hashFiles('.github/actions/oidc-cloud-auth/action.yml') == ''
+        run: |
+          echo "::error::Composite action .github/actions/oidc-cloud-auth (BV-110) ausente."
+          exit 1
+      - name: Staging roda o mesmo digest
+        env:
+          PLATFORM: ${{ needs.prepare.outputs.platform }}
+          API_IMAGE: ${{ needs.image.outputs.api }}
+          REGION: ${{ vars.CLOUD_RUN_REGION }}
+          API_SERVICE: ${{ vars.CLOUD_RUN_API_SERVICE || 'bolha-api' }}
+        run: |
+          case "$PLATFORM" in
+            cloudrun)
+              RUNNING="$(gcloud run services describe "$API_SERVICE" --region "$REGION" \
+                --format='value(spec.template.spec.containers[0].image)')"
+              if [ "${RUNNING#*@}" != "${API_IMAGE#*@}" ]; then
+                echo "::error::Staging roda $RUNNING, não $API_IMAGE. Aguarde o CD de staging (BV-105) ou reimplante."
+                exit 1
+              fi ;;
+            railway)
+              # TODO(BV-104/BV-105): consultar o deployment ativo do serviço api no Railway (API GraphQL).
+              echo "::error::Verificação de digest no Railway ainda não implementada (BV-104)."
+              exit 1 ;;
+          esac
+      - name: Smoke de staging
+        env:
+          STAGING_API_URL: ${{ vars.STAGING_API_URL }}
+        run: |
+          if [ -z "$STAGING_API_URL" ]; then
+            echo "::error::vars.STAGING_API_URL não definida (environment staging)."
+            exit 1
+          fi
+          curl --fail --silent --show-error --retry 5 --retry-delay 5 --retry-all-errors \
+            "$STAGING_API_URL/api/v1/health/ready"
+
+  migrate:
+    name: Migrations (produção)
+    needs: [prepare, image, verify-staging]
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    # Aprovação manual: revisores obrigatórios do environment (Tech Lead ou PO + DevOps) — HITL.
+    environment:
+      name: production
+      url: ${{ vars.PRODUCTION_URL }}
+    permissions:
+      contents: read
+      id-token: write
+    # Composite actions não leem vars/secrets: a action OIDC (BV-110) lê estes valores do env do job.
+    env:
+      PLATFORM: ${{ needs.prepare.outputs.platform }}
+      GCP_WIF_PROVIDER: ${{ vars.GCP_WIF_PROVIDER }}
+      GCP_DEPLOY_SA: ${{ vars.GCP_DEPLOY_SA }}
+      GCP_PROJECT_ID: ${{ vars.GCP_PROJECT_ID }}
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          persist-credentials: false
+      - uses: actions/setup-node@v7
+        with:
+          node-version-file: 003-project/.nvmrc
+      - name: Janela de deploy (reconferida após a aprovação)
+        working-directory: 003-project
+        env:
+          OVERRIDE_WINDOW: ${{ inputs.override_window }}
+          OVERRIDE_JUSTIFICATION: ${{ inputs.justification }}
+        run: node tools/deploy/check-window.mjs
+      - name: Autenticar na nuvem (OIDC, BV-110)
+        if: hashFiles('.github/actions/oidc-cloud-auth/action.yml') != ''
+        uses: ./.github/actions/oidc-cloud-auth
+        with:
+          railway-token: ${{ secrets.RAILWAY_TOKEN }} # só usado com platform=railway
+      - name: OIDC pendente
+        if: hashFiles('.github/actions/oidc-cloud-auth/action.yml') == ''
+        run: |
+          echo "::error::Composite action .github/actions/oidc-cloud-auth (BV-110) ausente."
+          exit 1
+      - name: prisma migrate deploy (imagem da versão N+1)
+        # §5.1: roda antes de qualquer instância nova receber tráfego, com DATABASE_DIRECT_URL do
+        # secret manager e lock_timeout 5s / statement_timeout 60s na sessão (definidos no script
+        # db:deploy do BV-107). Se falhar, nada foi trocado.
+        env:
+          PLATFORM: ${{ needs.prepare.outputs.platform }}
+          API_IMAGE: ${{ needs.image.outputs.api }}
+          REGION: ${{ vars.CLOUD_RUN_REGION }}
+          MIGRATE_JOB: ${{ vars.CLOUD_RUN_MIGRATE_JOB || 'bolha-migrate' }}
+        run: |
+          case "$PLATFORM" in
+            cloudrun)
+              gcloud run jobs update "$MIGRATE_JOB" --region "$REGION" --image "$API_IMAGE"
+              gcloud run jobs execute "$MIGRATE_JOB" --region "$REGION" --wait ;;
+            railway)
+              # TODO(BV-104): serviço/job de migration no Railway com a mesma imagem (pre-deploy command).
+              echo "::error::Migrations no Railway ainda não implementadas (BV-104)."
+              exit 1 ;;
+          esac
+
+  deploy:
+    name: Deploy gradual (api, worker)
+    needs: [prepare, image, migrate]
+    runs-on: ubuntu-latest
+    timeout-minutes: 90
+    environment:
+      name: production
+      url: ${{ vars.PRODUCTION_URL }}
+    permissions:
+      contents: read
+      id-token: write
+    env:
+      PLATFORM: ${{ needs.prepare.outputs.platform }}
+      GCP_WIF_PROVIDER: ${{ vars.GCP_WIF_PROVIDER }}
+      GCP_DEPLOY_SA: ${{ vars.GCP_DEPLOY_SA }}
+      GCP_PROJECT_ID: ${{ vars.GCP_PROJECT_ID }}
+      VERSION: ${{ needs.prepare.outputs.version }}
+      API_IMAGE: ${{ needs.image.outputs.api }}
+      WORKER_IMAGE: ${{ needs.image.outputs.worker }}
+      REGION: ${{ vars.CLOUD_RUN_REGION }}
+      API_SERVICE: ${{ vars.CLOUD_RUN_API_SERVICE || 'bolha-api' }}
+      WORKER_SERVICE: ${{ vars.CLOUD_RUN_WORKER_SERVICE || 'bolha-worker' }}
+      PRODUCTION_API_URL: ${{ vars.PRODUCTION_API_URL }}
+      # §6: 10% por 10 min → 50% → 100%; observação final de 30 min (plano-release).
+      STEP_OBSERVE_MINUTES: ${{ vars.DEPLOY_STEP_OBSERVE_MINUTES || '10' }}
+      WATCH_MINUTES: ${{ vars.DEPLOY_WATCH_MINUTES || '30' }}
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          persist-credentials: false
+      - name: Autenticar na nuvem (OIDC, BV-110)
+        if: hashFiles('.github/actions/oidc-cloud-auth/action.yml') != ''
+        uses: ./.github/actions/oidc-cloud-auth
+        with:
+          railway-token: ${{ secrets.RAILWAY_TOKEN }} # só usado com platform=railway
+      - name: OIDC pendente
+        if: hashFiles('.github/actions/oidc-cloud-auth/action.yml') == ''
+        run: |
+          echo "::error::Composite action .github/actions/oidc-cloud-auth (BV-110) ausente."
+          exit 1
+      - name: Railway (pendente)
+        if: env.PLATFORM == 'railway'
+        run: |
+          # TODO(BV-104): Railway — atualizar a imagem dos serviços api/worker para o digest, rolling
+          # com health check (/api/v1/health/ready) e overlap; rollback = redeploy do deployment anterior.
+          echo "::error::Deploy no Railway ainda não implementado (BV-104)."
+          exit 1
+      - name: Registrar a revisão atual da api (alvo de rollback)
+        if: env.PLATFORM == 'cloudrun'
+        run: |
+          PREV="$(gcloud run services describe "$API_SERVICE" --region "$REGION" \
+            --format='value(status.latestReadyRevisionName)')"
+          echo "PREVIOUS_REVISION=$PREV" >> "$GITHUB_ENV"
+          echo "Revisão anterior da api: $PREV" >> "$GITHUB_STEP_SUMMARY"
+      - name: Nova revisão da api sem tráfego (tag candidate)
+        if: env.PLATFORM == 'cloudrun'
+        run: |
+          gcloud run deploy "$API_SERVICE" --region "$REGION" --image "$API_IMAGE" \
+            --no-traffic --tag candidate --update-env-vars "APP_VERSION=$VERSION"
+          CANDIDATE_URL="$(gcloud run services describe "$API_SERVICE" --region "$REGION" --format=json \
+            | jq -r '.status.traffic[] | select(.tag == "candidate") | .url')"
+          echo "CANDIDATE_URL=$CANDIDATE_URL" >> "$GITHUB_ENV"
+      - name: Smoke na URL da revisão candidata
+        if: env.PLATFORM == 'cloudrun'
+        run: |
+          curl --fail --silent --show-error --retry 5 --retry-delay 5 --retry-all-errors \
+            "$CANDIDATE_URL/api/v1/health/ready"
+      - name: Progressão de tráfego 10% → 50% → 100%
+        if: env.PLATFORM == 'cloudrun'
+        run: |
+          observe() {
+            # TODO(BV-108): abortar também por 5xx > 1% por 5 min, p99 de POST /bubbles/{id}/quotas
+            # > 2× a linha de base e alerta S1/S2 aberto (§6) — hoje só o health check.
+            for _ in $(seq 1 "$1"); do
+              curl --fail --silent --show-error "$PRODUCTION_API_URL/api/v1/health/ready" > /dev/null
+              sleep 60
+            done
+          }
+          for pct in 10 50; do
+            gcloud run services update-traffic "$API_SERVICE" --region "$REGION" --to-tags "candidate=$pct"
+            echo "api: candidate com $pct% do tráfego" >> "$GITHUB_STEP_SUMMARY"
+            observe "$STEP_OBSERVE_MINUTES"
+          done
+          gcloud run services update-traffic "$API_SERVICE" --region "$REGION" --to-latest
+          echo "api: 100% na nova revisão" >> "$GITHUB_STEP_SUMMARY"
+      - name: Worker (rolling; SIGTERM → worker.close() espera jobs ativos)
+        if: env.PLATFORM == 'cloudrun'
+        run: |
+          gcloud run deploy "$WORKER_SERVICE" --region "$REGION" --image "$WORKER_IMAGE" \
+            --update-env-vars "APP_VERSION=$VERSION"
+      - name: Web (Vercel promote)
+        if: env.PLATFORM == 'cloudrun'
+        run: |
+          # TODO(BV-105): `vercel promote` do deploy verificado em staging (deploy atômico; rollback
+          # com `vercel rollback`). Depende do projeto/token da Vercel criados no CD de staging.
+          echo "::warning title=Web pendente::Promoção do web na Vercel ainda não implementada (BV-105)."
+      - name: Smoke de produção + observação
+        if: env.PLATFORM == 'cloudrun'
+        run: |
+          for _ in $(seq 1 "$WATCH_MINUTES"); do
+            curl --fail --silent --show-error --retry 3 --retry-delay 5 --retry-all-errors \
+              "$PRODUCTION_API_URL/api/v1/health/ready" > /dev/null
+            sleep 60
+          done
+          echo "Observação de $WATCH_MINUTES min concluída sem falha." >> "$GITHUB_STEP_SUMMARY"
+      - name: Rollback da api para a revisão anterior
+        # Banco não volta (migrations são expand, §5.4): a revisão N continua compatível.
+        if: failure() && env.PLATFORM == 'cloudrun' && env.PREVIOUS_REVISION != ''
+        run: |
+          gcloud run services update-traffic "$API_SERVICE" --region "$REGION" \
+            --to-revisions "$PREVIOUS_REVISION=100"
+          echo "::error::Deploy abortado: 100% do tráfego da api voltou para $PREVIOUS_REVISION (RB-09)."
