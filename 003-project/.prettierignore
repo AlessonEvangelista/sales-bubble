@@ -8,3 +8,4 @@ prototipacao-gemini
 *.md
 next-env.d.ts
 packages/contracts/openapi.yaml
+packages/database/src/shared/generated

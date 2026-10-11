@@ -325,7 +325,8 @@ CREATE TABLE accounts (
     password_hash        text,                                       -- argon2id; NULL se só OAuth
     oauth_provider       text        CHECK (oauth_provider IN ('GOOGLE')),
     oauth_subject_hash   bytea,
-    pii_key_version      smallint    NOT NULL DEFAULT 1,             -- versão da DEK/KEK usada
+    pii_data_key         bytea       NOT NULL,                       -- DEK da conta cifrada pela KEK (0x01‖len‖kekId‖DEK cifrada) — BV-107/BV-109
+    pii_key_version      smallint    NOT NULL DEFAULT 1,             -- versão do pepper do HMAC de busca (*_hash)
     pix_blocked_until    timestamptz,                                -- anti-abuso de Pix (Spec F5)
     status               text        NOT NULL DEFAULT 'PENDING_VERIFICATION'
                          CHECK (status IN ('PENDING_VERIFICATION','ACTIVE','SUSPENDED','DELETED')),
@@ -430,7 +431,7 @@ CREATE TABLE bubbles (
     reserved_quotas         int         NOT NULL DEFAULT 0,                       -- reservas Pix de 15 min (RESERVED)
     max_pj_share            smallint    NOT NULL DEFAULT 50 CHECK (max_pj_share BETWEEN 10 AND 100), -- % de max_quotas
     shipping_days           smallint    NOT NULL DEFAULT 7 CHECK (shipping_days BETWEEN 1 AND 30),
-    duration                interval    NOT NULL,                                 -- escolhido no DRAFT
+    duration                interval    NOT NULL,                                 -- escolhido no DRAFT (implementado como duration_minutes integer 60..7200 — BV-107, Prisma não suporta interval)
     starts_at               timestamptz,                                          -- definido na publicação
     expires_at              timestamptz,
     exploded_at             timestamptz,
@@ -986,7 +987,7 @@ CREATE INDEX audit_log_entity_ix ON audit_log (entity_type, entity_id, occurred_
 | `triage_items.shipping_address_enc` | Endereço de entrega (snapshot) | AES-256-GCM | — | Mostrado só ao vendedor do item |
 | `consents.ip_hash`, `refresh_tokens.ip_hash`, `audit_log.ip_hash` | IP | — | HMAC-SHA256 com *pepper* rotativo | Antifraude sem guardar o IP em claro |
 
-- **Envelope encryption:** uma DEK por conta, cifrada pela KEK do KMS e guardada junto (`pii_key_version` indica a KEK). A decifragem acontece só no adapter `KmsEnvelopeCipher`; o domínio recebe value objects (`Cpf`, `Email`) já decifrados e com `toJSON()` mascarado.
+- **Envelope encryption:** uma DEK por conta, cifrada pela KEK do KMS e guardada junto (coluna `accounts.pii_data_key`, cujo blob carrega o id da KEK; `pii_key_version` é a versão do pepper do HMAC). A decifragem acontece só no adapter `KmsEnvelopeCipher`; o domínio recebe value objects (`Cpf`, `Email`) já decifrados e com `toJSON()` mascarado.
 - **AAD do GCM** = `table:column:row_id`. Isso impede mover um ciphertext para outra linha.
 - **Direito de exclusão (LGPD):** exclusão = descartar a DEK da conta (*crypto-shredding*) + `status = 'DELETED'` + pseudônimo preservado nos registros financeiros que precisam ser retidos.
 
