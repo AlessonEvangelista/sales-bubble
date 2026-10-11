@@ -31,7 +31,7 @@ export { PrismaClient };
 export { Prisma } from './generated/prisma/client.js';
 
 /** Client transacional recebido em `prisma.$transaction(async (tx) => ...)`. */
-export type PrismaTransaction = Prisma.TransactionClient;
+export type PrismaTransaction = PrismaClient;
 
 /** Aceita o client raiz ou uma transação (os adapters funcionam com os dois). */
 export type PrismaExecutor = PrismaClient | PrismaTransaction;
