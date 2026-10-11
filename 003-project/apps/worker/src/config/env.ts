@@ -1,5 +1,6 @@
 import { existsSync } from 'node:fs';
 import { resolve } from 'node:path';
+import { parseFlagDefaults } from '@bolha/contracts';
 import { z } from 'zod';
 
 /** String vazia (ex.: `OTEL_EXPORTER_OTLP_ENDPOINT=` no .env) conta como ausente. */
@@ -23,6 +24,23 @@ export const workerEnvSchema = z.object({
   APP_VERSION: z.string().min(1).default('dev'),
   DATABASE_URL: z.url({ protocol: /^postgres(ql)?$/ }),
   REDIS_URL: z.url({ protocol: /^rediss?$/ }),
+  // Feature flags (BV-113): defaults por ambiente ("chave:true,chave:false") e TTL do cache
+  // em memória (plano de release §3: efeito em ≤ 10 s, por isso o teto de 10 000 ms).
+  FLAGS_DEFAULTS: z
+    .string()
+    .optional()
+    .refine(
+      (raw) => {
+        try {
+          parseFlagDefaults(raw);
+          return true;
+        } catch {
+          return false;
+        }
+      },
+      { message: 'FLAGS_DEFAULTS inválido' },
+    ),
+  FLAGS_CACHE_TTL_MS: z.coerce.number().int().min(100).max(10_000).default(10_000),
   BULLMQ_PREFIX: z.string().min(1).default('bull'),
   RECONCILER_INTERVAL_MS: z.coerce.number().int().positive().default(60_000),
   // --- Observabilidade (BV-108, slo-observabilidade.md §4–5). Todas opcionais, default seguro:

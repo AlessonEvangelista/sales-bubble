@@ -9,6 +9,9 @@
 export const DATABASE_PACKAGE = '@bolha/database' as const;
 
 export { createPostgresProbe, type PostgresProbe } from './postgres-probe.js';
+// Feature flags e kill switches — módulo platform (BV-113 / EN-033).
+export * from './platform/feature-flags/index.js';
+
 export {
   createPrismaClient,
   Prisma,

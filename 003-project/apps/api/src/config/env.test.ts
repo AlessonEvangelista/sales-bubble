@@ -25,4 +25,17 @@ describe('parseApiEnv', () => {
     );
     expect(() => parseApiEnv({ REDIS_URL: 'http://segredo@host' })).not.toThrow(/segredo/);
   });
+
+  it('valida FLAGS_DEFAULTS e limita o TTL do cache de flags a 10 s (BV-113)', () => {
+    expect(parseApiEnv(base).FLAGS_CACHE_TTL_MS).toBe(10_000);
+    expect(parseApiEnv({ ...base, FLAGS_DEFAULTS: 'payments_enabled:false' }).FLAGS_DEFAULTS).toBe(
+      'payments_enabled:false',
+    );
+    expect(() => parseApiEnv({ ...base, FLAGS_DEFAULTS: 'nao_existe:true' })).toThrow(
+      /FLAGS_DEFAULTS/,
+    );
+    expect(() => parseApiEnv({ ...base, FLAGS_CACHE_TTL_MS: '60000' })).toThrow(
+      /FLAGS_CACHE_TTL_MS/,
+    );
+  });
 });

@@ -1,5 +1,6 @@
 import { existsSync } from 'node:fs';
 import { resolve } from 'node:path';
+import { parseFlagDefaults } from '@bolha/contracts';
 import { z } from 'zod';
 
 /** String vazia (ex.: `OTEL_EXPORTER_OTLP_ENDPOINT=` no .env) conta como ausente. */
@@ -31,6 +32,23 @@ export const apiEnvSchema = z.object({
   OTEL_EXPORTER_OTLP_ENDPOINT: optionalUrl,
   OTEL_SDK_DISABLED: booleanFlag(false),
   OTEL_METRIC_EXPORT_INTERVAL: z.coerce.number().int().min(1_000).default(60_000),
+  // Feature flags (BV-113): defaults por ambiente ("chave:true,chave:false") e TTL do cache
+  // em memória (plano de release §3: efeito em ≤ 10 s, por isso o teto de 10 000 ms).
+  FLAGS_DEFAULTS: z
+    .string()
+    .optional()
+    .refine(
+      (raw) => {
+        try {
+          parseFlagDefaults(raw);
+          return true;
+        } catch {
+          return false;
+        }
+      },
+      { message: 'FLAGS_DEFAULTS inválido' },
+    ),
+  FLAGS_CACHE_TTL_MS: z.coerce.number().int().min(100).max(10_000).default(10_000),
 });
 
 export type ApiEnv = z.infer<typeof apiEnvSchema>;

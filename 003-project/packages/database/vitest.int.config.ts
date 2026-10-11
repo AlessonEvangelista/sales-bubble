@@ -1,7 +1,7 @@
 import { defineConfig } from 'vitest/config';
 
-// Testes de integração do pacote (BV-107): exigem `DATABASE_URL` apontando para um Postgres 16
-// com `npm run db:deploy` já aplicado (CI: job "Integração e contrato"; local: `npm run db:up`).
+// Testes de integração do pacote (BV-107/BV-113): exigem Postgres 16 e Redis 7
+// (CI: job "Integração e contrato"; local: `npm run db:up`).
 export default defineConfig({
   test: {
     include: ['src/**/*.int.test.ts'],
