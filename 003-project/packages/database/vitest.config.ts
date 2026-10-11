@@ -1,9 +1,10 @@
 import { configDefaults, defineConfig } from 'vitest/config';
 
-// Testes unitários (`npm run test`). Os de integração (`*.int.test.ts`, precisam de Redis/Postgres
-// do docker compose ou dos services do CI) rodam só em `npm run test:int` (vitest.int.config.ts).
+// Testes unitários do pacote. Os de integração (`*.int.test.ts`) precisam de Postgres/Redis
+// e rodam só com `npm run test:int` (vitest.int.config.ts).
 export default defineConfig({
   test: {
+    include: ['src/**/*.test.ts'],
     exclude: [...configDefaults.exclude, '**/*.int.test.ts'],
   },
 });

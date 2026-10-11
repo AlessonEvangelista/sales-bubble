@@ -1,0 +1,4830 @@
+# Arquivo GERADO por packages/contracts/scripts/generate-openapi.mjs — não edite à mão.
+openapi: 3.1.0
+info:
+  title: Bolha Venda API
+  version: 1.0.0
+  description: "Contrato REST gerado de @bolha/contracts (Zod) — NÃO EDITE À MÃO: rode `npm run openapi --workspace @bolha/contracts`. Fonte normativa: 002-llm/002 Docs/05-arquitetura/api-rest.md."
+servers:
+  - url: https://api.bolhavenda.com.br/api/v1
+    description: Produção
+  - url: https://api.staging.bolhavenda.com.br/api/v1
+    description: Staging
+tags:
+  - name: identity
+    description: Identidade e LGPD (F1)
+  - name: bubbles
+    description: Bolhas e canvas (F2–F4)
+  - name: quotas
+    description: Cotas (F5, F6)
+  - name: payments
+    description: Pagamentos e repasses (F5)
+  - name: bids
+    description: Lances C2B (F8)
+  - name: notifications
+    description: Notificações (F11)
+  - name: webhooks
+    description: Webhooks de provedores
+paths:
+  /auth/register:
+    post:
+      operationId: register
+      tags:
+        - identity
+      summary: Cadastro PF ou PJ — resposta sempre genérica (anti-enumeração)
+      x-auth: public
+      security: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/RegisterRequest"
+      responses:
+        "202":
+          description: Sempre a mesma resposta, exista ou não conta com o e-mail/documento (SEC-08/SEC-22).
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/RegisterAcceptedResponse"
+        "422":
+          description: "Erro (problem+json). Códigos: VALIDATION_FAILED, CPF_INVALID, CNPJ_INVALID, CNPJ_NOT_ACTIVE, CONSENT_REQUIRED"
+          x-error-codes:
+            - VALIDATION_FAILED
+            - CPF_INVALID
+            - CNPJ_INVALID
+            - CNPJ_NOT_ACTIVE
+            - CONSENT_REQUIRED
+          content:
+            application/problem+json:
+              schema:
+                $ref: "#/components/schemas/ProblemDetails"
+        "428":
+          description: "Erro (problem+json). Códigos: CAPTCHA_REQUIRED"
+          x-error-codes:
+            - CAPTCHA_REQUIRED
+          content:
+            application/problem+json:
+              schema:
+                $ref: "#/components/schemas/ProblemDetails"
+        "429":
+          description: "Erro (problem+json). Códigos: RATE_LIMITED"
+          x-error-codes:
+            - RATE_LIMITED
+          content:
+            application/problem+json:
+              schema:
+                $ref: "#/components/schemas/ProblemDetails"
+        default:
+          description: Erro não previsto (INTERNAL_ERROR) ou de plataforma (SERVICE_UNAVAILABLE)
+          content:
+            application/problem+json:
+              schema:
+                $ref: "#/components/schemas/ProblemDetails"
+  /auth/email/confirm:
+    post:
+      operationId: confirmEmail
+      tags:
+        - identity
+      summary: Confirmar e-mail e entrar
+      x-auth: public
+      security: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                token:
+                  type: string
+                  minLength: 16
+                  maxLength: 512
+              required:
+                - token
+              additionalProperties: false
+      responses:
+        "201":
+          description: Sessão criada (+ cookie __Host-bv_rt)
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/SessionResponse"
+        "401":
+          description: "Erro (problem+json). Códigos: TOKEN_EXPIRED"
+          x-error-codes:
+            - TOKEN_EXPIRED
+          content:
+            application/problem+json:
+              schema:
+                $ref: "#/components/schemas/ProblemDetails"
+        "422":
+          description: "Erro (problem+json). Códigos: VALIDATION_FAILED"
+          x-error-codes:
+            - VALIDATION_FAILED
+          content:
+            application/problem+json:
+              schema:
+                $ref: "#/components/schemas/ProblemDetails"
+        "429":
+          description: "Erro (problem+json). Códigos: RATE_LIMITED"
+          x-error-codes:
+            - RATE_LIMITED
+          content:
+            application/problem+json:
+              schema:
+                $ref: "#/components/schemas/ProblemDetails"
+        default:
+          description: Erro não previsto (INTERNAL_ERROR) ou de plataforma (SERVICE_UNAVAILABLE)
+          content:
+            application/problem+json:
+              schema:
+                $ref: "#/components/schemas/ProblemDetails"
+  /auth/email/resend:
+    post:
+      operationId: resendConfirmationEmail
+      tags:
+        - identity
+      summary: Reenviar e-mail de confirmação — resposta sempre genérica
+      x-auth: public
+      security: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                email:
+                  type: string
+                  maxLength: 254
+                  format: email
+                  pattern: ^(?:[A-Za-z0-9_'+\-]+\.)*[A-Za-z0-9_'+\-]*[A-Za-z0-9_+-]@(?:[A-Za-z0-9][A-Za-z0-9\-]*\.)+[A-Za-z]{2,}$
+              required:
+                - email
+              additionalProperties: false
+      responses:
+        "202":
+          description: Sempre a mesma resposta (anti-enumeração).
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/GenericAcceptedResponse"
+        "422":
+          description: "Erro (problem+json). Códigos: VALIDATION_FAILED"
+          x-error-codes:
+            - VALIDATION_FAILED
+          content:
+            application/problem+json:
+              schema:
+                $ref: "#/components/schemas/ProblemDetails"
+        "429":
+          description: "Erro (problem+json). Códigos: RATE_LIMITED"
+          x-error-codes:
+            - RATE_LIMITED
+          content:
+            application/problem+json:
+              schema:
+                $ref: "#/components/schemas/ProblemDetails"
+        default:
+          description: Erro não previsto (INTERNAL_ERROR) ou de plataforma (SERVICE_UNAVAILABLE)
+          content:
+            application/problem+json:
+              schema:
+                $ref: "#/components/schemas/ProblemDetails"
+  /auth/login:
+    post:
+      operationId: login
+      tags:
+        - identity
+      summary: Login com e-mail e senha
+      x-auth: public
+      security: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                email:
+                  type: string
+                  maxLength: 254
+                  format: email
+                  pattern: ^(?:[A-Za-z0-9_'+\-]+\.)*[A-Za-z0-9_'+\-]*[A-Za-z0-9_+-]@(?:[A-Za-z0-9][A-Za-z0-9\-]*\.)+[A-Za-z]{2,}$
+                password:
+                  type: string
+                  minLength: 1
+                  maxLength: 128
+                captcha_token:
+                  anyOf:
+                    - type: string
+                      maxLength: 4096
+                    - type: "null"
+              required:
+                - email
+                - password
+              additionalProperties: false
+      responses:
+        "200":
+          description: Sessão criada (+ cookie de refresh)
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/SessionResponse"
+        "401":
+          description: "Erro (problem+json). Códigos: INVALID_CREDENTIALS"
+          x-error-codes:
+            - INVALID_CREDENTIALS
+          content:
+            application/problem+json:
+              schema:
+                $ref: "#/components/schemas/ProblemDetails"
+        "403":
+          description: "Erro (problem+json). Códigos: ACCOUNT_SUSPENDED"
+          x-error-codes:
+            - ACCOUNT_SUSPENDED
+          content:
+            application/problem+json:
+              schema:
+                $ref: "#/components/schemas/ProblemDetails"
+        "422":
+          description: "Erro (problem+json). Códigos: VALIDATION_FAILED"
+          x-error-codes:
+            - VALIDATION_FAILED
+          content:
+            application/problem+json:
+              schema:
+                $ref: "#/components/schemas/ProblemDetails"
+        "428":
+          description: "Erro (problem+json). Códigos: CAPTCHA_REQUIRED"
+          x-error-codes:
+            - CAPTCHA_REQUIRED
+          content:
+            application/problem+json:
+              schema:
+                $ref: "#/components/schemas/ProblemDetails"
+        "429":
+          description: "Erro (problem+json). Códigos: RATE_LIMITED"
+          x-error-codes:
+            - RATE_LIMITED
+          content:
+            application/problem+json:
+              schema:
+                $ref: "#/components/schemas/ProblemDetails"
+        default:
+          description: Erro não previsto (INTERNAL_ERROR) ou de plataforma (SERVICE_UNAVAILABLE)
+          content:
+            application/problem+json:
+              schema:
+                $ref: "#/components/schemas/ProblemDetails"
+  /auth/refresh:
+    post:
+      operationId: refreshSession
+      tags:
+        - identity
+      summary: Renovar access token (rotação do refresh)
+      x-auth: refresh-cookie
+      security:
+        - refreshCookie: []
+      parameters:
+        - $ref: "#/components/parameters/CsrfToken"
+      responses:
+        "200":
+          description: Sucesso
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/SessionResponse"
+        "401":
+          description: "Erro (problem+json). Códigos: UNAUTHENTICATED, REFRESH_TOKEN_REUSED"
+          x-error-codes:
+            - UNAUTHENTICATED
+            - REFRESH_TOKEN_REUSED
+          content:
+            application/problem+json:
+              schema:
+                $ref: "#/components/schemas/ProblemDetails"
+        "429":
+          description: "Erro (problem+json). Códigos: RATE_LIMITED"
+          x-error-codes:
+            - RATE_LIMITED
+          content:
+            application/problem+json:
+              schema:
+                $ref: "#/components/schemas/ProblemDetails"
+        default:
+          description: Erro não previsto (INTERNAL_ERROR) ou de plataforma (SERVICE_UNAVAILABLE)
+          content:
+            application/problem+json:
+              schema:
+                $ref: "#/components/schemas/ProblemDetails"
+  /auth/logout:
+    post:
+      operationId: logout
+      tags:
+        - identity
+      summary: Encerrar sessão (revoga a família do refresh)
+      x-auth: refresh-cookie
+      security:
+        - refreshCookie: []
+      parameters:
+        - $ref: "#/components/parameters/CsrfToken"
+      responses:
+        "204":
+          description: Sem conteúdo
+        "401":
+          description: "Erro (problem+json). Códigos: UNAUTHENTICATED"
+          x-error-codes:
+            - UNAUTHENTICATED
+          content:
+            application/problem+json:
+              schema:
+                $ref: "#/components/schemas/ProblemDetails"
+        default:
+          description: Erro não previsto (INTERNAL_ERROR) ou de plataforma (SERVICE_UNAVAILABLE)
+          content:
+            application/problem+json:
+              schema:
+                $ref: "#/components/schemas/ProblemDetails"
+  /auth/password/forgot:
+    post:
+      operationId: forgotPassword
+      tags:
+        - identity
+      summary: Recuperação de senha — resposta sempre genérica
+      x-auth: public
+      security: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                email:
+                  type: string
+                  maxLength: 254
+                  format: email
+                  pattern: ^(?:[A-Za-z0-9_'+\-]+\.)*[A-Za-z0-9_'+\-]*[A-Za-z0-9_+-]@(?:[A-Za-z0-9][A-Za-z0-9\-]*\.)+[A-Za-z]{2,}$
+              required:
+                - email
+              additionalProperties: false
+      responses:
+        "202":
+          description: Sempre a mesma resposta (anti-enumeração).
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/GenericAcceptedResponse"
+        "422":
+          description: "Erro (problem+json). Códigos: VALIDATION_FAILED"
+          x-error-codes:
+            - VALIDATION_FAILED
+          content:
+            application/problem+json:
+              schema:
+                $ref: "#/components/schemas/ProblemDetails"
+        "428":
+          description: "Erro (problem+json). Códigos: CAPTCHA_REQUIRED"
+          x-error-codes:
+            - CAPTCHA_REQUIRED
+          content:
+            application/problem+json:
+              schema:
+                $ref: "#/components/schemas/ProblemDetails"
+        "429":
+          description: "Erro (problem+json). Códigos: RATE_LIMITED"
+          x-error-codes:
+            - RATE_LIMITED
+          content:
+            application/problem+json:
+              schema:
+                $ref: "#/components/schemas/ProblemDetails"
+        default:
+          description: Erro não previsto (INTERNAL_ERROR) ou de plataforma (SERVICE_UNAVAILABLE)
+          content:
+            application/problem+json:
+              schema:
+                $ref: "#/components/schemas/ProblemDetails"
+  /auth/password/reset:
+    post:
+      operationId: resetPassword
+      tags:
+        - identity
+      summary: Redefinir senha (revoga todas as sessões)
+      x-auth: public
+      security: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                token:
+                  type: string
+                  minLength: 16
+                  maxLength: 512
+                password:
+                  type: string
+                  minLength: 15
+                  maxLength: 128
+              required:
+                - token
+                - password
+              additionalProperties: false
+      responses:
+        "204":
+          description: Sem conteúdo
+        "401":
+          description: "Erro (problem+json). Códigos: TOKEN_EXPIRED"
+          x-error-codes:
+            - TOKEN_EXPIRED
+          content:
+            application/problem+json:
+              schema:
+                $ref: "#/components/schemas/ProblemDetails"
+        "422":
+          description: "Erro (problem+json). Códigos: VALIDATION_FAILED"
+          x-error-codes:
+            - VALIDATION_FAILED
+          content:
+            application/problem+json:
+              schema:
+                $ref: "#/components/schemas/ProblemDetails"
+        "429":
+          description: "Erro (problem+json). Códigos: RATE_LIMITED"
+          x-error-codes:
+            - RATE_LIMITED
+          content:
+            application/problem+json:
+              schema:
+                $ref: "#/components/schemas/ProblemDetails"
+        default:
+          description: Erro não previsto (INTERNAL_ERROR) ou de plataforma (SERVICE_UNAVAILABLE)
+          content:
+            application/problem+json:
+              schema:
+                $ref: "#/components/schemas/ProblemDetails"
+  /me:
+    get:
+      operationId: getMe
+      tags:
+        - identity
+      summary: Meus dados (mascarados)
+      x-auth: authenticated
+      security:
+        - bearerAuth: []
+      responses:
+        "200":
+          description: Dados do titular (+ ETag)
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/MeResponse"
+        "401":
+          description: "Erro (problem+json). Códigos: UNAUTHENTICATED, TOKEN_EXPIRED"
+          x-error-codes:
+            - UNAUTHENTICATED
+            - TOKEN_EXPIRED
+          content:
+            application/problem+json:
+              schema:
+                $ref: "#/components/schemas/ProblemDetails"
+        default:
+          description: Erro não previsto (INTERNAL_ERROR) ou de plataforma (SERVICE_UNAVAILABLE)
+          content:
+            application/problem+json:
+              schema:
+                $ref: "#/components/schemas/ProblemDetails"
+    patch:
+      operationId: updateMe
+      tags:
+        - identity
+      summary: Atualizar meus dados
+      x-auth: authenticated
+      security:
+        - bearerAuth: []
+      parameters:
+        - $ref: "#/components/parameters/IfMatch"
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                name:
+                  type: string
+                  minLength: 2
+                  maxLength: 120
+                phone:
+                  type: string
+                  pattern: ^\+?\d{10,14}$
+                shipping_address:
+                  $ref: "#/components/schemas/ShippingAddress"
+                nickname:
+                  type: string
+                  pattern: ^[\p{L}\p{N}_.-]{3,24}$
+                preferences:
+                  type: object
+                  properties:
+                    reduce_motion:
+                      type: boolean
+                  required:
+                    - reduce_motion
+                  additionalProperties: false
+                cpf:
+                  type: string
+                  pattern: ^\d{3}\.?\d{3}\.?\d{3}-?\d{2}$
+                cnpj:
+                  type: string
+                  pattern: ^\d{2}\.?\d{3}\.?\d{3}\/?\d{4}-?\d{2}$
+              additionalProperties: false
+      responses:
+        "200":
+          description: Sucesso
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/MeResponse"
+        "401":
+          description: "Erro (problem+json). Códigos: UNAUTHENTICATED"
+          x-error-codes:
+            - UNAUTHENTICATED
+          content:
+            application/problem+json:
+              schema:
+                $ref: "#/components/schemas/ProblemDetails"
+        "403":
+          description: "Erro (problem+json). Códigos: ACCOUNT_SUSPENDED"
+          x-error-codes:
+            - ACCOUNT_SUSPENDED
+          content:
+            application/problem+json:
+              schema:
+                $ref: "#/components/schemas/ProblemDetails"
+        "409":
+          description: "Erro (problem+json). Códigos: NICKNAME_UNAVAILABLE, DOCUMENT_ALREADY_REGISTERED"
+          x-error-codes:
+            - NICKNAME_UNAVAILABLE
+            - DOCUMENT_ALREADY_REGISTERED
+          content:
+            application/problem+json:
+              schema:
+                $ref: "#/components/schemas/ProblemDetails"
+        "412":
+          description: "Erro (problem+json). Códigos: VERSION_CONFLICT"
+          x-error-codes:
+            - VERSION_CONFLICT
+          content:
+            application/problem+json:
+              schema:
+                $ref: "#/components/schemas/ProblemDetails"
+        "422":
+          description: "Erro (problem+json). Códigos: VALIDATION_FAILED, CPF_INVALID, CNPJ_INVALID, CNPJ_NOT_ACTIVE"
+          x-error-codes:
+            - VALIDATION_FAILED
+            - CPF_INVALID
+            - CNPJ_INVALID
+            - CNPJ_NOT_ACTIVE
+          content:
+            application/problem+json:
+              schema:
+                $ref: "#/components/schemas/ProblemDetails"
+        "429":
+          description: "Erro (problem+json). Códigos: RATE_LIMITED"
+          x-error-codes:
+            - RATE_LIMITED
+          content:
+            application/problem+json:
+              schema:
+                $ref: "#/components/schemas/ProblemDetails"
+        default:
+          description: Erro não previsto (INTERNAL_ERROR) ou de plataforma (SERVICE_UNAVAILABLE)
+          content:
+            application/problem+json:
+              schema:
+                $ref: "#/components/schemas/ProblemDetails"
+  /me/company/verification:
+    post:
+      operationId: requestCompanyVerification
+      tags:
+        - identity
+      summary: Revalidar CNPJ agora
+      x-auth: pj
+      security:
+        - bearerAuth: []
+      responses:
+        "202":
+          description: Sucesso
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  verification_status:
+                    type: string
+                    const: PENDING_VERIFICATION
+                  check_id:
+                    $ref: "#/components/schemas/Uuid"
+                required:
+                  - verification_status
+                  - check_id
+                additionalProperties: false
+        "401":
+          description: "Erro (problem+json). Códigos: UNAUTHENTICATED"
+          x-error-codes:
+            - UNAUTHENTICATED
+          content:
+            application/problem+json:
+              schema:
+                $ref: "#/components/schemas/ProblemDetails"
+        "403":
+          description: "Erro (problem+json). Códigos: ACCOUNT_SUSPENDED, FORBIDDEN"
+          x-error-codes:
+            - ACCOUNT_SUSPENDED
+            - FORBIDDEN
+          content:
+            application/problem+json:
+              schema:
+                $ref: "#/components/schemas/ProblemDetails"
+        "429":
+          description: "Erro (problem+json). Códigos: RATE_LIMITED"
+          x-error-codes:
+            - RATE_LIMITED
+          content:
+            application/problem+json:
+              schema:
+                $ref: "#/components/schemas/ProblemDetails"
+        default:
+          description: Erro não previsto (INTERNAL_ERROR) ou de plataforma (SERVICE_UNAVAILABLE)
+          content:
+            application/problem+json:
+              schema:
+                $ref: "#/components/schemas/ProblemDetails"
+  /me/payout-recipient:
+    post:
+      operationId: registerPayoutRecipient
+      tags:
+        - identity
+      summary: Cadastro de recebedor (vendedor)
+      x-auth: authenticated
+      security:
+        - bearerAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                bank_account:
+                  type: object
+                  properties:
+                    bank:
+                      type: string
+                      pattern: ^\d{3}$
+                    branch:
+                      type: string
+                      pattern: ^\d{1,5}(-?\d)?$
+                    account:
+                      type: string
+                      pattern: ^\d{1,13}-?[\dXx]?$
+                    type:
+                      type: string
+                      enum:
+                        - CHECKING
+                        - SAVINGS
+                  required:
+                    - bank
+                    - branch
+                    - account
+                    - type
+                  additionalProperties: false
+                holder_document:
+                  anyOf:
+                    - type: string
+                      pattern: ^\d{3}\.?\d{3}\.?\d{3}-?\d{2}$
+                    - type: string
+                      pattern: ^\d{2}\.?\d{3}\.?\d{3}\/?\d{4}-?\d{2}$
+              required:
+                - bank_account
+                - holder_document
+              additionalProperties: false
+      responses:
+        "202":
+          description: Sucesso
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  status:
+                    type: string
+                    enum:
+                      - NOT_REGISTERED
+                      - PENDING_REVIEW
+                      - APPROVED
+                      - REJECTED
+                required:
+                  - status
+                additionalProperties: false
+        "401":
+          description: "Erro (problem+json). Códigos: UNAUTHENTICATED"
+          x-error-codes:
+            - UNAUTHENTICATED
+          content:
+            application/problem+json:
+              schema:
+                $ref: "#/components/schemas/ProblemDetails"
+        "403":
+          description: "Erro (problem+json). Códigos: ACCOUNT_SUSPENDED"
+          x-error-codes:
+            - ACCOUNT_SUSPENDED
+          content:
+            application/problem+json:
+              schema:
+                $ref: "#/components/schemas/ProblemDetails"
+        "422":
+          description: "Erro (problem+json). Códigos: VALIDATION_FAILED"
+          x-error-codes:
+            - VALIDATION_FAILED
+          content:
+            application/problem+json:
+              schema:
+                $ref: "#/components/schemas/ProblemDetails"
+        "429":
+          description: "Erro (problem+json). Códigos: RATE_LIMITED"
+          x-error-codes:
+            - RATE_LIMITED
+          content:
+            application/problem+json:
+              schema:
+                $ref: "#/components/schemas/ProblemDetails"
+        default:
+          description: Erro não previsto (INTERNAL_ERROR) ou de plataforma (SERVICE_UNAVAILABLE)
+          content:
+            application/problem+json:
+              schema:
+                $ref: "#/components/schemas/ProblemDetails"
+    get:
+      operationId: getPayoutRecipient
+      tags:
+        - identity
+      summary: Status do recebedor
+      x-auth: authenticated
+      security:
+        - bearerAuth: []
+      responses:
+        "200":
+          description: Sucesso
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  status:
+                    type: string
+                    enum:
+                      - NOT_REGISTERED
+                      - PENDING_REVIEW
+                      - APPROVED
+                      - REJECTED
+                required:
+                  - status
+                additionalProperties: false
+        "401":
+          description: "Erro (problem+json). Códigos: UNAUTHENTICATED"
+          x-error-codes:
+            - UNAUTHENTICATED
+          content:
+            application/problem+json:
+              schema:
+                $ref: "#/components/schemas/ProblemDetails"
+        default:
+          description: Erro não previsto (INTERNAL_ERROR) ou de plataforma (SERVICE_UNAVAILABLE)
+          content:
+            application/problem+json:
+              schema:
+                $ref: "#/components/schemas/ProblemDetails"
+  /me/consents:
+    get:
+      operationId: listConsents
+      tags:
+        - identity
+      summary: Histórico versionado de consentimentos
+      x-auth: authenticated
+      security:
+        - bearerAuth: []
+      responses:
+        "200":
+          description: Sucesso
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  type: object
+                  properties:
+                    purpose:
+                      type: string
+                      enum:
+                        - terms
+                        - privacy
+                        - marketing
+                    version:
+                      type:
+                        - string
+                        - "null"
+                    granted:
+                      type: boolean
+                    at:
+                      $ref: "#/components/schemas/IsoDateTime"
+                    channel:
+                      type: string
+                  required:
+                    - purpose
+                    - version
+                    - granted
+                    - at
+                    - channel
+                  additionalProperties: false
+        "401":
+          description: "Erro (problem+json). Códigos: UNAUTHENTICATED"
+          x-error-codes:
+            - UNAUTHENTICATED
+          content:
+            application/problem+json:
+              schema:
+                $ref: "#/components/schemas/ProblemDetails"
+        default:
+          description: Erro não previsto (INTERNAL_ERROR) ou de plataforma (SERVICE_UNAVAILABLE)
+          content:
+            application/problem+json:
+              schema:
+                $ref: "#/components/schemas/ProblemDetails"
+    post:
+      operationId: grantConsent
+      tags:
+        - identity
+      summary: Conceder/revogar consentimento de marketing
+      x-auth: authenticated
+      security:
+        - bearerAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                purpose:
+                  type: string
+                  const: marketing
+                granted:
+                  type: boolean
+              required:
+                - purpose
+                - granted
+              additionalProperties: false
+      responses:
+        "201":
+          description: Registrado
+        "401":
+          description: "Erro (problem+json). Códigos: UNAUTHENTICATED"
+          x-error-codes:
+            - UNAUTHENTICATED
+          content:
+            application/problem+json:
+              schema:
+                $ref: "#/components/schemas/ProblemDetails"
+        "403":
+          description: "Erro (problem+json). Códigos: ACCOUNT_SUSPENDED"
+          x-error-codes:
+            - ACCOUNT_SUSPENDED
+          content:
+            application/problem+json:
+              schema:
+                $ref: "#/components/schemas/ProblemDetails"
+        "422":
+          description: "Erro (problem+json). Códigos: VALIDATION_FAILED"
+          x-error-codes:
+            - VALIDATION_FAILED
+          content:
+            application/problem+json:
+              schema:
+                $ref: "#/components/schemas/ProblemDetails"
+        "429":
+          description: "Erro (problem+json). Códigos: RATE_LIMITED"
+          x-error-codes:
+            - RATE_LIMITED
+          content:
+            application/problem+json:
+              schema:
+                $ref: "#/components/schemas/ProblemDetails"
+        default:
+          description: Erro não previsto (INTERNAL_ERROR) ou de plataforma (SERVICE_UNAVAILABLE)
+          content:
+            application/problem+json:
+              schema:
+                $ref: "#/components/schemas/ProblemDetails"
+  /me/data-exports:
+    post:
+      operationId: requestDataExport
+      tags:
+        - identity
+      summary: Exportar meus dados (LGPD art. 18)
+      x-auth: authenticated
+      security:
+        - bearerAuth: []
+      responses:
+        "202":
+          description: Sucesso
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/DataExportResponse"
+        "401":
+          description: "Erro (problem+json). Códigos: UNAUTHENTICATED"
+          x-error-codes:
+            - UNAUTHENTICATED
+          content:
+            application/problem+json:
+              schema:
+                $ref: "#/components/schemas/ProblemDetails"
+        "403":
+          description: "Erro (problem+json). Códigos: ACCOUNT_SUSPENDED"
+          x-error-codes:
+            - ACCOUNT_SUSPENDED
+          content:
+            application/problem+json:
+              schema:
+                $ref: "#/components/schemas/ProblemDetails"
+        "409":
+          description: "Erro (problem+json). Códigos: EXPORT_ALREADY_IN_PROGRESS"
+          x-error-codes:
+            - EXPORT_ALREADY_IN_PROGRESS
+          content:
+            application/problem+json:
+              schema:
+                $ref: "#/components/schemas/ProblemDetails"
+        "429":
+          description: "Erro (problem+json). Códigos: RATE_LIMITED"
+          x-error-codes:
+            - RATE_LIMITED
+          content:
+            application/problem+json:
+              schema:
+                $ref: "#/components/schemas/ProblemDetails"
+        default:
+          description: Erro não previsto (INTERNAL_ERROR) ou de plataforma (SERVICE_UNAVAILABLE)
+          content:
+            application/problem+json:
+              schema:
+                $ref: "#/components/schemas/ProblemDetails"
+  /me/data-exports/{id}:
+    get:
+      operationId: getDataExport
+      tags:
+        - identity
+      summary: Status/download da exportação
+      x-auth: owner
+      security:
+        - bearerAuth: []
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            $ref: "#/components/schemas/Uuid"
+      responses:
+        "200":
+          description: Sucesso
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/DataExportResponse"
+        "401":
+          description: "Erro (problem+json). Códigos: UNAUTHENTICATED"
+          x-error-codes:
+            - UNAUTHENTICATED
+          content:
+            application/problem+json:
+              schema:
+                $ref: "#/components/schemas/ProblemDetails"
+        "404":
+          description: "Erro (problem+json). Códigos: NOT_FOUND"
+          x-error-codes:
+            - NOT_FOUND
+          content:
+            application/problem+json:
+              schema:
+                $ref: "#/components/schemas/ProblemDetails"
+        default:
+          description: Erro não previsto (INTERNAL_ERROR) ou de plataforma (SERVICE_UNAVAILABLE)
+          content:
+            application/problem+json:
+              schema:
+                $ref: "#/components/schemas/ProblemDetails"
+  /me/deletion-request:
+    post:
+      operationId: requestAccountDeletion
+      tags:
+        - identity
+      summary: Excluir conta (agendada para +7 dias)
+      x-auth: authenticated
+      security:
+        - bearerAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                reason:
+                  type: string
+                  maxLength: 1000
+                password:
+                  type: string
+                  minLength: 1
+                  maxLength: 128
+              required:
+                - password
+              additionalProperties: false
+      responses:
+        "202":
+          description: Sucesso
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  status:
+                    type: string
+                    const: SCHEDULED
+                  effective_at:
+                    $ref: "#/components/schemas/IsoDateTime"
+                required:
+                  - status
+                  - effective_at
+                additionalProperties: false
+        "401":
+          description: "Erro (problem+json). Códigos: UNAUTHENTICATED, INVALID_CREDENTIALS"
+          x-error-codes:
+            - UNAUTHENTICATED
+            - INVALID_CREDENTIALS
+          content:
+            application/problem+json:
+              schema:
+                $ref: "#/components/schemas/ProblemDetails"
+        "403":
+          description: "Erro (problem+json). Códigos: ACCOUNT_SUSPENDED"
+          x-error-codes:
+            - ACCOUNT_SUSPENDED
+          content:
+            application/problem+json:
+              schema:
+                $ref: "#/components/schemas/ProblemDetails"
+        "409":
+          description: "Erro (problem+json). Códigos: DELETION_BLOCKED_OBLIGATIONS"
+          x-error-codes:
+            - DELETION_BLOCKED_OBLIGATIONS
+          content:
+            application/problem+json:
+              schema:
+                $ref: "#/components/schemas/ProblemDetails"
+        "422":
+          description: "Erro (problem+json). Códigos: VALIDATION_FAILED"
+          x-error-codes:
+            - VALIDATION_FAILED
+          content:
+            application/problem+json:
+              schema:
+                $ref: "#/components/schemas/ProblemDetails"
+        "429":
+          description: "Erro (problem+json). Códigos: RATE_LIMITED"
+          x-error-codes:
+            - RATE_LIMITED
+          content:
+            application/problem+json:
+              schema:
+                $ref: "#/components/schemas/ProblemDetails"
+        default:
+          description: Erro não previsto (INTERNAL_ERROR) ou de plataforma (SERVICE_UNAVAILABLE)
+          content:
+            application/problem+json:
+              schema:
+                $ref: "#/components/schemas/ProblemDetails"
+    delete:
+      operationId: cancelAccountDeletion
+      tags:
+        - identity
+      summary: Desistir da exclusão
+      x-auth: authenticated
+      security:
+        - bearerAuth: []
+      responses:
+        "204":
+          description: Sem conteúdo
+        "401":
+          description: "Erro (problem+json). Códigos: UNAUTHENTICATED"
+          x-error-codes:
+            - UNAUTHENTICATED
+          content:
+            application/problem+json:
+              schema:
+                $ref: "#/components/schemas/ProblemDetails"
+        "404":
+          description: "Erro (problem+json). Códigos: NOT_FOUND"
+          x-error-codes:
+            - NOT_FOUND
+          content:
+            application/problem+json:
+              schema:
+                $ref: "#/components/schemas/ProblemDetails"
+        default:
+          description: Erro não previsto (INTERNAL_ERROR) ou de plataforma (SERVICE_UNAVAILABLE)
+          content:
+            application/problem+json:
+              schema:
+                $ref: "#/components/schemas/ProblemDetails"
+  /categories:
+    get:
+      operationId: listCategories
+      tags:
+        - bubbles
+      summary: Categorias
+      x-auth: public
+      security: []
+      responses:
+        "200":
+          description: Sucesso
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/Category"
+        "429":
+          description: "Erro (problem+json). Códigos: RATE_LIMITED"
+          x-error-codes:
+            - RATE_LIMITED
+          content:
+            application/problem+json:
+              schema:
+                $ref: "#/components/schemas/ProblemDetails"
+        default:
+          description: Erro não previsto (INTERNAL_ERROR) ou de plataforma (SERVICE_UNAVAILABLE)
+          content:
+            application/problem+json:
+              schema:
+                $ref: "#/components/schemas/ProblemDetails"
+  /bubbles:
+    post:
+      operationId: createBubble
+      tags:
+        - bubbles
+      summary: Criar rascunho de bolha (venda ou compra)
+      x-auth: authenticated
+      security:
+        - bearerAuth: []
+      parameters:
+        - $ref: "#/components/parameters/IdempotencyKeyOptional"
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/CreateBubbleRequest"
+      responses:
+        "201":
+          description: Rascunho criado (status DRAFT, ETag "v1")
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/BubbleDetail"
+        "401":
+          description: "Erro (problem+json). Códigos: UNAUTHENTICATED"
+          x-error-codes:
+            - UNAUTHENTICATED
+          content:
+            application/problem+json:
+              schema:
+                $ref: "#/components/schemas/ProblemDetails"
+        "403":
+          description: "Erro (problem+json). Códigos: ACCOUNT_SUSPENDED, ACCOUNT_NOT_VERIFIED, RECIPIENT_NOT_REGISTERED"
+          x-error-codes:
+            - ACCOUNT_SUSPENDED
+            - ACCOUNT_NOT_VERIFIED
+            - RECIPIENT_NOT_REGISTERED
+          content:
+            application/problem+json:
+              schema:
+                $ref: "#/components/schemas/ProblemDetails"
+        "409":
+          description: "Erro (problem+json). Códigos: WRONG_BUBBLE_TYPE"
+          x-error-codes:
+            - WRONG_BUBBLE_TYPE
+          content:
+            application/problem+json:
+              schema:
+                $ref: "#/components/schemas/ProblemDetails"
+        "422":
+          description: "Erro (problem+json). Códigos: VALIDATION_FAILED, INVALID_PRICE_TIERS, INVALID_DURATION, INVALID_QUOTA_RANGE, INVALID_PJ_SHARE, INVALID_SHIPPING_DAYS, CONSENT_REQUIRED"
+          x-error-codes:
+            - VALIDATION_FAILED
+            - INVALID_PRICE_TIERS
+            - INVALID_DURATION
+            - INVALID_QUOTA_RANGE
+            - INVALID_PJ_SHARE
+            - INVALID_SHIPPING_DAYS
+            - CONSENT_REQUIRED
+          content:
+            application/problem+json:
+              schema:
+                $ref: "#/components/schemas/ProblemDetails"
+        "429":
+          description: "Erro (problem+json). Códigos: RATE_LIMITED"
+          x-error-codes:
+            - RATE_LIMITED
+          content:
+            application/problem+json:
+              schema:
+                $ref: "#/components/schemas/ProblemDetails"
+        default:
+          description: Erro não previsto (INTERNAL_ERROR) ou de plataforma (SERVICE_UNAVAILABLE)
+          content:
+            application/problem+json:
+              schema:
+                $ref: "#/components/schemas/ProblemDetails"
+    get:
+      operationId: searchBubbles
+      tags:
+        - bubbles
+      summary: Canvas (viewport por bbox/zoom) ou lista acessível (view=list)
+      x-auth: public
+      security: []
+      parameters:
+        - name: view
+          in: query
+          required: false
+          schema:
+            type: string
+            const: list
+        - name: bbox
+          in: query
+          required: false
+          schema:
+            type: array
+            prefixItems:
+              - type: number
+              - type: number
+              - type: number
+              - type: number
+            items: false
+            minItems: 4
+            maxItems: 4
+          style: form
+          explode: false
+        - name: q
+          in: query
+          required: false
+          schema:
+            type: string
+            maxLength: 100
+        - name: sort
+          in: query
+          required: false
+          schema:
+            type: string
+            enum:
+              - expires_at
+              - current_price
+              - -progress
+        - name: type
+          in: query
+          required: false
+          schema:
+            minItems: 1
+            type: array
+            items:
+              $ref: "#/components/schemas/BubbleType"
+          style: form
+          explode: false
+        - name: category
+          in: query
+          required: false
+          schema:
+            type: string
+            maxLength: 64
+        - name: price_min
+          in: query
+          required: false
+          schema:
+            type: integer
+            minimum: 0
+            maximum: 9007199254740991
+        - name: price_max
+          in: query
+          required: false
+          schema:
+            type: integer
+            minimum: 0
+            maximum: 9007199254740991
+        - name: participating
+          in: query
+          required: false
+          schema:
+            type: boolean
+        - name: status
+          in: query
+          required: false
+          schema:
+            minItems: 1
+            type: array
+            items:
+              $ref: "#/components/schemas/BubbleStatus"
+          style: form
+          explode: false
+        - name: recently_exploded
+          in: query
+          required: false
+          schema:
+            type: boolean
+        - name: limit
+          in: query
+          required: false
+          schema:
+            default: 20
+            type: integer
+            minimum: 1
+            maximum: 100
+        - name: cursor
+          in: query
+          required: false
+          schema:
+            type: string
+            maxLength: 512
+        - name: zoom
+          in: query
+          required: false
+          schema:
+            type: number
+            minimum: 0.1
+            maximum: 4
+      responses:
+        "200":
+          description: Sucesso
+          content:
+            application/json:
+              schema:
+                anyOf:
+                  - $ref: "#/components/schemas/BubbleViewportResponse"
+                  - $ref: "#/components/schemas/BubblePage"
+        "422":
+          description: "Erro (problem+json). Códigos: VALIDATION_FAILED"
+          x-error-codes:
+            - VALIDATION_FAILED
+          content:
+            application/problem+json:
+              schema:
+                $ref: "#/components/schemas/ProblemDetails"
+        "429":
+          description: "Erro (problem+json). Códigos: RATE_LIMITED"
+          x-error-codes:
+            - RATE_LIMITED
+          content:
+            application/problem+json:
+              schema:
+                $ref: "#/components/schemas/ProblemDetails"
+        default:
+          description: Erro não previsto (INTERNAL_ERROR) ou de plataforma (SERVICE_UNAVAILABLE)
+          content:
+            application/problem+json:
+              schema:
+                $ref: "#/components/schemas/ProblemDetails"
+  /bubbles/{id}:
+    get:
+      operationId: getBubble
+      tags:
+        - bubbles
+      summary: Detalhe da bolha (com token inclui my_participation e allowed_actions)
+      x-auth: public
+      security: []
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            $ref: "#/components/schemas/Uuid"
+      responses:
+        "200":
+          description: Sucesso
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/BubbleDetail"
+        "404":
+          description: "Erro (problem+json). Códigos: BUBBLE_NOT_FOUND"
+          x-error-codes:
+            - BUBBLE_NOT_FOUND
+          content:
+            application/problem+json:
+              schema:
+                $ref: "#/components/schemas/ProblemDetails"
+        "429":
+          description: "Erro (problem+json). Códigos: RATE_LIMITED"
+          x-error-codes:
+            - RATE_LIMITED
+          content:
+            application/problem+json:
+              schema:
+                $ref: "#/components/schemas/ProblemDetails"
+        default:
+          description: Erro não previsto (INTERNAL_ERROR) ou de plataforma (SERVICE_UNAVAILABLE)
+          content:
+            application/problem+json:
+              schema:
+                $ref: "#/components/schemas/ProblemDetails"
+    patch:
+      operationId: updateBubble
+      tags:
+        - bubbles
+      summary: "Editar bolha (ACTIVE: só descrição e imagens)"
+      x-auth: creator
+      security:
+        - bearerAuth: []
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            $ref: "#/components/schemas/Uuid"
+        - $ref: "#/components/parameters/IfMatch"
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/UpdateBubbleRequest"
+      responses:
+        "200":
+          description: Sucesso
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/BubbleDetail"
+        "401":
+          description: "Erro (problem+json). Códigos: UNAUTHENTICATED"
+          x-error-codes:
+            - UNAUTHENTICATED
+          content:
+            application/problem+json:
+              schema:
+                $ref: "#/components/schemas/ProblemDetails"
+        "403":
+          description: "Erro (problem+json). Códigos: ACCOUNT_SUSPENDED"
+          x-error-codes:
+            - ACCOUNT_SUSPENDED
+          content:
+            application/problem+json:
+              schema:
+                $ref: "#/components/schemas/ProblemDetails"
+        "404":
+          description: "Erro (problem+json). Códigos: BUBBLE_NOT_FOUND"
+          x-error-codes:
+            - BUBBLE_NOT_FOUND
+          content:
+            application/problem+json:
+              schema:
+                $ref: "#/components/schemas/ProblemDetails"
+        "409":
+          description: "Erro (problem+json). Códigos: FIELD_LOCKED_AFTER_PUBLISH, WRONG_BUBBLE_TYPE"
+          x-error-codes:
+            - FIELD_LOCKED_AFTER_PUBLISH
+            - WRONG_BUBBLE_TYPE
+          content:
+            application/problem+json:
+              schema:
+                $ref: "#/components/schemas/ProblemDetails"
+        "412":
+          description: "Erro (problem+json). Códigos: VERSION_CONFLICT"
+          x-error-codes:
+            - VERSION_CONFLICT
+          content:
+            application/problem+json:
+              schema:
+                $ref: "#/components/schemas/ProblemDetails"
+        "422":
+          description: "Erro (problem+json). Códigos: VALIDATION_FAILED, INVALID_PRICE_TIERS, INVALID_DURATION, INVALID_QUOTA_RANGE, INVALID_PJ_SHARE, INVALID_SHIPPING_DAYS"
+          x-error-codes:
+            - VALIDATION_FAILED
+            - INVALID_PRICE_TIERS
+            - INVALID_DURATION
+            - INVALID_QUOTA_RANGE
+            - INVALID_PJ_SHARE
+            - INVALID_SHIPPING_DAYS
+          content:
+            application/problem+json:
+              schema:
+                $ref: "#/components/schemas/ProblemDetails"
+        "429":
+          description: "Erro (problem+json). Códigos: RATE_LIMITED"
+          x-error-codes:
+            - RATE_LIMITED
+          content:
+            application/problem+json:
+              schema:
+                $ref: "#/components/schemas/ProblemDetails"
+        default:
+          description: Erro não previsto (INTERNAL_ERROR) ou de plataforma (SERVICE_UNAVAILABLE)
+          content:
+            application/problem+json:
+              schema:
+                $ref: "#/components/schemas/ProblemDetails"
+  /bubbles/{id}/publish:
+    post:
+      operationId: publishBubble
+      tags:
+        - bubbles
+      summary: Publicar (DRAFT → ACTIVE); compra pré-autoriza a cota do criador
+      x-auth: creator
+      security:
+        - bearerAuth: []
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            $ref: "#/components/schemas/Uuid"
+        - $ref: "#/components/parameters/IdempotencyKeyRequired"
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                payment:
+                  type: object
+                  properties:
+                    method:
+                      type: string
+                      const: CARD
+                    card_token:
+                      type: string
+                      minLength: 1
+                      maxLength: 512
+                    installments:
+                      default: 1
+                      type: integer
+                      minimum: 1
+                      maximum: 12
+                  required:
+                    - method
+                    - card_token
+                  additionalProperties: false
+              additionalProperties: false
+      responses:
+        "200":
+          description: Sucesso
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/BubbleDetail"
+        "400":
+          description: "Erro (problem+json). Códigos: IDEMPOTENCY_KEY_MISSING"
+          x-error-codes:
+            - IDEMPOTENCY_KEY_MISSING
+          content:
+            application/problem+json:
+              schema:
+                $ref: "#/components/schemas/ProblemDetails"
+        "401":
+          description: "Erro (problem+json). Códigos: UNAUTHENTICATED"
+          x-error-codes:
+            - UNAUTHENTICATED
+          content:
+            application/problem+json:
+              schema:
+                $ref: "#/components/schemas/ProblemDetails"
+        "402":
+          description: "Erro (problem+json). Códigos: CREATOR_QUOTA_NOT_AUTHORIZED"
+          x-error-codes:
+            - CREATOR_QUOTA_NOT_AUTHORIZED
+          content:
+            application/problem+json:
+              schema:
+                $ref: "#/components/schemas/ProblemDetails"
+        "403":
+          description: "Erro (problem+json). Códigos: ACCOUNT_SUSPENDED, ACCOUNT_NOT_VERIFIED, RECIPIENT_NOT_REGISTERED"
+          x-error-codes:
+            - ACCOUNT_SUSPENDED
+            - ACCOUNT_NOT_VERIFIED
+            - RECIPIENT_NOT_REGISTERED
+          content:
+            application/problem+json:
+              schema:
+                $ref: "#/components/schemas/ProblemDetails"
+        "404":
+          description: "Erro (problem+json). Códigos: BUBBLE_NOT_FOUND"
+          x-error-codes:
+            - BUBBLE_NOT_FOUND
+          content:
+            application/problem+json:
+              schema:
+                $ref: "#/components/schemas/ProblemDetails"
+        "409":
+          description: "Erro (problem+json). Códigos: IDEMPOTENCY_IN_PROGRESS, BUBBLE_NOT_DRAFT"
+          x-error-codes:
+            - IDEMPOTENCY_IN_PROGRESS
+            - BUBBLE_NOT_DRAFT
+          content:
+            application/problem+json:
+              schema:
+                $ref: "#/components/schemas/ProblemDetails"
+        "422":
+          description: "Erro (problem+json). Códigos: IDEMPOTENCY_KEY_REUSED, INVALID_DURATION, PAYMENT_METHOD_UNSUPPORTED"
+          x-error-codes:
+            - IDEMPOTENCY_KEY_REUSED
+            - INVALID_DURATION
+            - PAYMENT_METHOD_UNSUPPORTED
+          content:
+            application/problem+json:
+              schema:
+                $ref: "#/components/schemas/ProblemDetails"
+        "429":
+          description: "Erro (problem+json). Códigos: RATE_LIMITED"
+          x-error-codes:
+            - RATE_LIMITED
+          content:
+            application/problem+json:
+              schema:
+                $ref: "#/components/schemas/ProblemDetails"
+        "503":
+          description: "Erro (problem+json). Códigos: PAYMENT_PROVIDER_UNAVAILABLE"
+          x-error-codes:
+            - PAYMENT_PROVIDER_UNAVAILABLE
+          content:
+            application/problem+json:
+              schema:
+                $ref: "#/components/schemas/ProblemDetails"
+        default:
+          description: Erro não previsto (INTERNAL_ERROR) ou de plataforma (SERVICE_UNAVAILABLE)
+          content:
+            application/problem+json:
+              schema:
+                $ref: "#/components/schemas/ProblemDetails"
+  /bubbles/{id}/cancel:
+    post:
+      operationId: cancelBubble
+      tags:
+        - bubbles
+      summary: Cancelar bolha (rascunho ou ACTIVE sem cotas)
+      x-auth: creator
+      security:
+        - bearerAuth: []
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            $ref: "#/components/schemas/Uuid"
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                reason:
+                  type: string
+                  minLength: 1
+                  maxLength: 500
+              required:
+                - reason
+              additionalProperties: false
+      responses:
+        "200":
+          description: Sucesso
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/BubbleDetail"
+        "401":
+          description: "Erro (problem+json). Códigos: UNAUTHENTICATED"
+          x-error-codes:
+            - UNAUTHENTICATED
+          content:
+            application/problem+json:
+              schema:
+                $ref: "#/components/schemas/ProblemDetails"
+        "403":
+          description: "Erro (problem+json). Códigos: ACCOUNT_SUSPENDED"
+          x-error-codes:
+            - ACCOUNT_SUSPENDED
+          content:
+            application/problem+json:
+              schema:
+                $ref: "#/components/schemas/ProblemDetails"
+        "404":
+          description: "Erro (problem+json). Códigos: BUBBLE_NOT_FOUND"
+          x-error-codes:
+            - BUBBLE_NOT_FOUND
+          content:
+            application/problem+json:
+              schema:
+                $ref: "#/components/schemas/ProblemDetails"
+        "409":
+          description: "Erro (problem+json). Códigos: BUBBLE_HAS_QUOTAS, BUBBLE_NOT_ACTIVE"
+          x-error-codes:
+            - BUBBLE_HAS_QUOTAS
+            - BUBBLE_NOT_ACTIVE
+          content:
+            application/problem+json:
+              schema:
+                $ref: "#/components/schemas/ProblemDetails"
+        "429":
+          description: "Erro (problem+json). Códigos: RATE_LIMITED"
+          x-error-codes:
+            - RATE_LIMITED
+          content:
+            application/problem+json:
+              schema:
+                $ref: "#/components/schemas/ProblemDetails"
+        default:
+          description: Erro não previsto (INTERNAL_ERROR) ou de plataforma (SERVICE_UNAVAILABLE)
+          content:
+            application/problem+json:
+              schema:
+                $ref: "#/components/schemas/ProblemDetails"
+  /me/bubbles:
+    get:
+      operationId: listMyBubbles
+      tags:
+        - bubbles
+      summary: Bolhas que criei
+      x-auth: authenticated
+      security:
+        - bearerAuth: []
+      parameters:
+        - name: status
+          in: query
+          required: false
+          schema:
+            minItems: 1
+            type: array
+            items:
+              $ref: "#/components/schemas/BubbleStatus"
+          style: form
+          explode: false
+        - name: type
+          in: query
+          required: false
+          schema:
+            minItems: 1
+            type: array
+            items:
+              $ref: "#/components/schemas/BubbleType"
+          style: form
+          explode: false
+        - name: limit
+          in: query
+          required: false
+          schema:
+            default: 20
+            type: integer
+            minimum: 1
+            maximum: 100
+        - name: cursor
+          in: query
+          required: false
+          schema:
+            type: string
+            maxLength: 512
+      responses:
+        "200":
+          description: Sucesso
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  data:
+                    type: array
+                    items:
+                      $ref: "#/components/schemas/BubbleSummary"
+                  page:
+                    $ref: "#/components/schemas/PageInfo"
+                  pending_actions:
+                    type: object
+                    propertyNames:
+                      type: string
+                    additionalProperties:
+                      anyOf:
+                        - type: string
+                        - type: integer
+                          minimum: -9007199254740991
+                          maximum: 9007199254740991
+                required:
+                  - data
+                  - page
+                additionalProperties: false
+        "401":
+          description: "Erro (problem+json). Códigos: UNAUTHENTICATED"
+          x-error-codes:
+            - UNAUTHENTICATED
+          content:
+            application/problem+json:
+              schema:
+                $ref: "#/components/schemas/ProblemDetails"
+        "422":
+          description: "Erro (problem+json). Códigos: VALIDATION_FAILED"
+          x-error-codes:
+            - VALIDATION_FAILED
+          content:
+            application/problem+json:
+              schema:
+                $ref: "#/components/schemas/ProblemDetails"
+        default:
+          description: Erro não previsto (INTERNAL_ERROR) ou de plataforma (SERVICE_UNAVAILABLE)
+          content:
+            application/problem+json:
+              schema:
+                $ref: "#/components/schemas/ProblemDetails"
+  /bubbles/{id}/reports:
+    post:
+      operationId: reportBubble
+      tags:
+        - bubbles
+      summary: Denunciar bolha
+      x-auth: authenticated
+      security:
+        - bearerAuth: []
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            $ref: "#/components/schemas/Uuid"
+        - $ref: "#/components/parameters/IdempotencyKeyOptional"
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                category:
+                  type: string
+                  enum:
+                    - PROHIBITED
+                    - MISLEADING
+                    - FRAUD
+                    - OTHER
+                details:
+                  type: string
+                  maxLength: 1000
+              required:
+                - category
+              additionalProperties: false
+      responses:
+        "201":
+          description: Sucesso
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  id:
+                    $ref: "#/components/schemas/Uuid"
+                  status:
+                    type: string
+                    const: RECEIVED
+                required:
+                  - id
+                  - status
+                additionalProperties: false
+        "401":
+          description: "Erro (problem+json). Códigos: UNAUTHENTICATED"
+          x-error-codes:
+            - UNAUTHENTICATED
+          content:
+            application/problem+json:
+              schema:
+                $ref: "#/components/schemas/ProblemDetails"
+        "403":
+          description: "Erro (problem+json). Códigos: ACCOUNT_SUSPENDED"
+          x-error-codes:
+            - ACCOUNT_SUSPENDED
+          content:
+            application/problem+json:
+              schema:
+                $ref: "#/components/schemas/ProblemDetails"
+        "404":
+          description: "Erro (problem+json). Códigos: BUBBLE_NOT_FOUND"
+          x-error-codes:
+            - BUBBLE_NOT_FOUND
+          content:
+            application/problem+json:
+              schema:
+                $ref: "#/components/schemas/ProblemDetails"
+        "409":
+          description: "Erro (problem+json). Códigos: REPORT_ALREADY_SUBMITTED"
+          x-error-codes:
+            - REPORT_ALREADY_SUBMITTED
+          content:
+            application/problem+json:
+              schema:
+                $ref: "#/components/schemas/ProblemDetails"
+        "422":
+          description: "Erro (problem+json). Códigos: VALIDATION_FAILED"
+          x-error-codes:
+            - VALIDATION_FAILED
+          content:
+            application/problem+json:
+              schema:
+                $ref: "#/components/schemas/ProblemDetails"
+        "429":
+          description: "Erro (problem+json). Códigos: RATE_LIMITED"
+          x-error-codes:
+            - RATE_LIMITED
+          content:
+            application/problem+json:
+              schema:
+                $ref: "#/components/schemas/ProblemDetails"
+        default:
+          description: Erro não previsto (INTERNAL_ERROR) ou de plataforma (SERVICE_UNAVAILABLE)
+          content:
+            application/problem+json:
+              schema:
+                $ref: "#/components/schemas/ProblemDetails"
+  /uploads/images:
+    post:
+      operationId: createImageUpload
+      tags:
+        - bubbles
+      summary: URL assinada para upload de imagem/evidência
+      x-auth: authenticated
+      security:
+        - bearerAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                content_type:
+                  type: string
+                  enum:
+                    - image/jpeg
+                    - image/png
+                    - image/webp
+                    - application/pdf
+                size_bytes:
+                  type: integer
+                  exclusiveMinimum: 0
+                  maximum: 5242880
+                purpose:
+                  type: string
+                  enum:
+                    - BUBBLE
+                    - EVIDENCE
+              required:
+                - content_type
+                - size_bytes
+                - purpose
+              additionalProperties: false
+      responses:
+        "201":
+          description: Sucesso
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  upload_id:
+                    $ref: "#/components/schemas/Uuid"
+                  upload_url:
+                    type: string
+                    format: uri
+                  expires_at:
+                    $ref: "#/components/schemas/IsoDateTime"
+                required:
+                  - upload_id
+                  - upload_url
+                  - expires_at
+                additionalProperties: false
+        "401":
+          description: "Erro (problem+json). Códigos: UNAUTHENTICATED"
+          x-error-codes:
+            - UNAUTHENTICATED
+          content:
+            application/problem+json:
+              schema:
+                $ref: "#/components/schemas/ProblemDetails"
+        "403":
+          description: "Erro (problem+json). Códigos: ACCOUNT_SUSPENDED"
+          x-error-codes:
+            - ACCOUNT_SUSPENDED
+          content:
+            application/problem+json:
+              schema:
+                $ref: "#/components/schemas/ProblemDetails"
+        "422":
+          description: "Erro (problem+json). Códigos: VALIDATION_FAILED"
+          x-error-codes:
+            - VALIDATION_FAILED
+          content:
+            application/problem+json:
+              schema:
+                $ref: "#/components/schemas/ProblemDetails"
+        "429":
+          description: "Erro (problem+json). Códigos: RATE_LIMITED"
+          x-error-codes:
+            - RATE_LIMITED
+          content:
+            application/problem+json:
+              schema:
+                $ref: "#/components/schemas/ProblemDetails"
+        default:
+          description: Erro não previsto (INTERNAL_ERROR) ou de plataforma (SERVICE_UNAVAILABLE)
+          content:
+            application/problem+json:
+              schema:
+                $ref: "#/components/schemas/ProblemDetails"
+  /bubbles/{id}/quotas:
+    post:
+      operationId: acquireQuota
+      tags:
+        - quotas
+      summary: Entrar na bolha (cartão pré-autoriza; Pix reserva)
+      x-auth: authenticated
+      security:
+        - bearerAuth: []
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            $ref: "#/components/schemas/Uuid"
+        - $ref: "#/components/parameters/IdempotencyKeyRequired"
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/AcquireQuotaRequest"
+      responses:
+        "201":
+          description: Sucesso
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/AcquireQuotaResponse"
+        "400":
+          description: "Erro (problem+json). Códigos: IDEMPOTENCY_KEY_MISSING"
+          x-error-codes:
+            - IDEMPOTENCY_KEY_MISSING
+          content:
+            application/problem+json:
+              schema:
+                $ref: "#/components/schemas/ProblemDetails"
+        "401":
+          description: "Erro (problem+json). Códigos: UNAUTHENTICATED"
+          x-error-codes:
+            - UNAUTHENTICATED
+          content:
+            application/problem+json:
+              schema:
+                $ref: "#/components/schemas/ProblemDetails"
+        "402":
+          description: "Erro (problem+json). Códigos: PAYMENT_DECLINED"
+          x-error-codes:
+            - PAYMENT_DECLINED
+          content:
+            application/problem+json:
+              schema:
+                $ref: "#/components/schemas/ProblemDetails"
+        "403":
+          description: "Erro (problem+json). Códigos: ACCOUNT_SUSPENDED, ACCOUNT_NOT_VERIFIED"
+          x-error-codes:
+            - ACCOUNT_SUSPENDED
+            - ACCOUNT_NOT_VERIFIED
+          content:
+            application/problem+json:
+              schema:
+                $ref: "#/components/schemas/ProblemDetails"
+        "404":
+          description: "Erro (problem+json). Códigos: BUBBLE_NOT_FOUND"
+          x-error-codes:
+            - BUBBLE_NOT_FOUND
+          content:
+            application/problem+json:
+              schema:
+                $ref: "#/components/schemas/ProblemDetails"
+        "409":
+          description: "Erro (problem+json). Códigos: IDEMPOTENCY_IN_PROGRESS, BUBBLE_NOT_ACTIVE, QUOTA_SOLD_OUT, QUOTA_EXCEEDS_AVAILABLE, PF_QUOTA_LIMIT, PJ_SHARE_EXCEEDED, CREATOR_CANNOT_JOIN"
+          x-error-codes:
+            - IDEMPOTENCY_IN_PROGRESS
+            - BUBBLE_NOT_ACTIVE
+            - QUOTA_SOLD_OUT
+            - QUOTA_EXCEEDS_AVAILABLE
+            - PF_QUOTA_LIMIT
+            - PJ_SHARE_EXCEEDED
+            - CREATOR_CANNOT_JOIN
+          content:
+            application/problem+json:
+              schema:
+                $ref: "#/components/schemas/ProblemDetails"
+        "422":
+          description: "Erro (problem+json). Códigos: IDEMPOTENCY_KEY_REUSED, VALIDATION_FAILED, PIX_UNAVAILABLE_LATE, PAYMENT_METHOD_UNSUPPORTED"
+          x-error-codes:
+            - IDEMPOTENCY_KEY_REUSED
+            - VALIDATION_FAILED
+            - PIX_UNAVAILABLE_LATE
+            - PAYMENT_METHOD_UNSUPPORTED
+          content:
+            application/problem+json:
+              schema:
+                $ref: "#/components/schemas/ProblemDetails"
+        "428":
+          description: "Erro (problem+json). Códigos: CAPTCHA_REQUIRED"
+          x-error-codes:
+            - CAPTCHA_REQUIRED
+          content:
+            application/problem+json:
+              schema:
+                $ref: "#/components/schemas/ProblemDetails"
+        "429":
+          description: "Erro (problem+json). Códigos: RATE_LIMITED, PIX_TEMPORARILY_BLOCKED"
+          x-error-codes:
+            - RATE_LIMITED
+            - PIX_TEMPORARILY_BLOCKED
+          content:
+            application/problem+json:
+              schema:
+                $ref: "#/components/schemas/ProblemDetails"
+        "503":
+          description: "Erro (problem+json). Códigos: PAYMENT_PROVIDER_UNAVAILABLE"
+          x-error-codes:
+            - PAYMENT_PROVIDER_UNAVAILABLE
+          content:
+            application/problem+json:
+              schema:
+                $ref: "#/components/schemas/ProblemDetails"
+        default:
+          description: Erro não previsto (INTERNAL_ERROR) ou de plataforma (SERVICE_UNAVAILABLE)
+          content:
+            application/problem+json:
+              schema:
+                $ref: "#/components/schemas/ProblemDetails"
+  /bubbles/{id}/quotas/me:
+    delete:
+      operationId: leaveQuota
+      tags:
+        - quotas
+      summary: Sair da bolha (fora da última hora)
+      x-auth: participant
+      security:
+        - bearerAuth: []
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            $ref: "#/components/schemas/Uuid"
+        - name: quantity
+          in: query
+          required: false
+          schema:
+            type: integer
+            minimum: 1
+            maximum: 9007199254740991
+      responses:
+        "200":
+          description: Sucesso
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/LeaveQuotaResponse"
+        "401":
+          description: "Erro (problem+json). Códigos: UNAUTHENTICATED"
+          x-error-codes:
+            - UNAUTHENTICATED
+          content:
+            application/problem+json:
+              schema:
+                $ref: "#/components/schemas/ProblemDetails"
+        "403":
+          description: "Erro (problem+json). Códigos: ACCOUNT_SUSPENDED"
+          x-error-codes:
+            - ACCOUNT_SUSPENDED
+          content:
+            application/problem+json:
+              schema:
+                $ref: "#/components/schemas/ProblemDetails"
+        "404":
+          description: "Erro (problem+json). Códigos: QUOTA_NOT_FOUND"
+          x-error-codes:
+            - QUOTA_NOT_FOUND
+          content:
+            application/problem+json:
+              schema:
+                $ref: "#/components/schemas/ProblemDetails"
+        "409":
+          description: "Erro (problem+json). Códigos: BUBBLE_NOT_ACTIVE, BUBBLE_EXIT_LOCKED"
+          x-error-codes:
+            - BUBBLE_NOT_ACTIVE
+            - BUBBLE_EXIT_LOCKED
+          content:
+            application/problem+json:
+              schema:
+                $ref: "#/components/schemas/ProblemDetails"
+        "429":
+          description: "Erro (problem+json). Códigos: RATE_LIMITED"
+          x-error-codes:
+            - RATE_LIMITED
+          content:
+            application/problem+json:
+              schema:
+                $ref: "#/components/schemas/ProblemDetails"
+        default:
+          description: Erro não previsto (INTERNAL_ERROR) ou de plataforma (SERVICE_UNAVAILABLE)
+          content:
+            application/problem+json:
+              schema:
+                $ref: "#/components/schemas/ProblemDetails"
+  /me/quotas:
+    get:
+      operationId: listMyQuotas
+      tags:
+        - quotas
+      summary: Minhas cotas
+      x-auth: authenticated
+      security:
+        - bearerAuth: []
+      parameters:
+        - name: status
+          in: query
+          required: false
+          schema:
+            minItems: 1
+            type: array
+            items:
+              $ref: "#/components/schemas/QuotaStatus"
+          style: form
+          explode: false
+        - name: limit
+          in: query
+          required: false
+          schema:
+            default: 20
+            type: integer
+            minimum: 1
+            maximum: 100
+        - name: cursor
+          in: query
+          required: false
+          schema:
+            type: string
+            maxLength: 512
+      responses:
+        "200":
+          description: Sucesso
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/MyQuotasResponse"
+        "401":
+          description: "Erro (problem+json). Códigos: UNAUTHENTICATED"
+          x-error-codes:
+            - UNAUTHENTICATED
+          content:
+            application/problem+json:
+              schema:
+                $ref: "#/components/schemas/ProblemDetails"
+        "422":
+          description: "Erro (problem+json). Códigos: VALIDATION_FAILED"
+          x-error-codes:
+            - VALIDATION_FAILED
+          content:
+            application/problem+json:
+              schema:
+                $ref: "#/components/schemas/ProblemDetails"
+        default:
+          description: Erro não previsto (INTERNAL_ERROR) ou de plataforma (SERVICE_UNAVAILABLE)
+          content:
+            application/problem+json:
+              schema:
+                $ref: "#/components/schemas/ProblemDetails"
+  /payments/{id}:
+    get:
+      operationId: getPayment
+      tags:
+        - payments
+      summary: Detalhe do pagamento (linha do tempo)
+      x-auth: owner
+      security:
+        - bearerAuth: []
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            $ref: "#/components/schemas/Uuid"
+      responses:
+        "200":
+          description: Sucesso
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/PaymentDetail"
+        "401":
+          description: "Erro (problem+json). Códigos: UNAUTHENTICATED"
+          x-error-codes:
+            - UNAUTHENTICATED
+          content:
+            application/problem+json:
+              schema:
+                $ref: "#/components/schemas/ProblemDetails"
+        "404":
+          description: "Erro (problem+json). Códigos: NOT_FOUND"
+          x-error-codes:
+            - NOT_FOUND
+          content:
+            application/problem+json:
+              schema:
+                $ref: "#/components/schemas/ProblemDetails"
+        default:
+          description: Erro não previsto (INTERNAL_ERROR) ou de plataforma (SERVICE_UNAVAILABLE)
+          content:
+            application/problem+json:
+              schema:
+                $ref: "#/components/schemas/ProblemDetails"
+  /me/payments:
+    get:
+      operationId: listMyPayments
+      tags:
+        - payments
+      summary: Meus pagamentos
+      x-auth: authenticated
+      security:
+        - bearerAuth: []
+      parameters:
+        - name: limit
+          in: query
+          required: false
+          schema:
+            default: 20
+            type: integer
+            minimum: 1
+            maximum: 100
+        - name: cursor
+          in: query
+          required: false
+          schema:
+            type: string
+            maxLength: 512
+      responses:
+        "200":
+          description: Sucesso
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  data:
+                    type: array
+                    items:
+                      $ref: "#/components/schemas/PaymentDetail"
+                  page:
+                    $ref: "#/components/schemas/PageInfo"
+                required:
+                  - data
+                  - page
+                additionalProperties: false
+        "401":
+          description: "Erro (problem+json). Códigos: UNAUTHENTICATED"
+          x-error-codes:
+            - UNAUTHENTICATED
+          content:
+            application/problem+json:
+              schema:
+                $ref: "#/components/schemas/ProblemDetails"
+        "422":
+          description: "Erro (problem+json). Códigos: VALIDATION_FAILED"
+          x-error-codes:
+            - VALIDATION_FAILED
+          content:
+            application/problem+json:
+              schema:
+                $ref: "#/components/schemas/ProblemDetails"
+        default:
+          description: Erro não previsto (INTERNAL_ERROR) ou de plataforma (SERVICE_UNAVAILABLE)
+          content:
+            application/problem+json:
+              schema:
+                $ref: "#/components/schemas/ProblemDetails"
+  /me/payouts:
+    get:
+      operationId: listMyPayouts
+      tags:
+        - payments
+      summary: Repasses (vendedor)
+      x-auth: authenticated
+      security:
+        - bearerAuth: []
+      responses:
+        "200":
+          description: Sucesso
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  data:
+                    type: array
+                    items:
+                      type: object
+                      properties:
+                        id:
+                          $ref: "#/components/schemas/Uuid"
+                        status:
+                          type: string
+                          enum:
+                            - SCHEDULED
+                            - ON_HOLD
+                            - RELEASED
+                            - FAILED
+                        gross_amount:
+                          $ref: "#/components/schemas/Cents"
+                        platform_fee:
+                          $ref: "#/components/schemas/Cents"
+                        gateway_fee:
+                          $ref: "#/components/schemas/Cents"
+                        net_amount:
+                          $ref: "#/components/schemas/Cents"
+                        release_at:
+                          anyOf:
+                            - $ref: "#/components/schemas/IsoDateTime"
+                            - type: "null"
+                      required:
+                        - id
+                        - status
+                        - gross_amount
+                        - platform_fee
+                        - gateway_fee
+                        - net_amount
+                        - release_at
+                      additionalProperties: false
+                  page:
+                    $ref: "#/components/schemas/PageInfo"
+                required:
+                  - data
+                  - page
+                additionalProperties: false
+        "401":
+          description: "Erro (problem+json). Códigos: UNAUTHENTICATED"
+          x-error-codes:
+            - UNAUTHENTICATED
+          content:
+            application/problem+json:
+              schema:
+                $ref: "#/components/schemas/ProblemDetails"
+        default:
+          description: Erro não previsto (INTERNAL_ERROR) ou de plataforma (SERVICE_UNAVAILABLE)
+          content:
+            application/problem+json:
+              schema:
+                $ref: "#/components/schemas/ProblemDetails"
+  /webhooks/payments/pagarme:
+    post:
+      operationId: pagarmeWebhook
+      tags:
+        - webhooks
+      summary: Webhook do Pagar.me (corpo do gateway; processamento assíncrono com fetch-back)
+      x-auth: gateway
+      security: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              propertyNames:
+                type: string
+              additionalProperties: {}
+      responses:
+        "200":
+          description: Evento persistido (ou duplicado)
+        "401":
+          description: "Erro (problem+json). Códigos: WEBHOOK_SIGNATURE_INVALID"
+          x-error-codes:
+            - WEBHOOK_SIGNATURE_INVALID
+          content:
+            application/problem+json:
+              schema:
+                $ref: "#/components/schemas/ProblemDetails"
+        "429":
+          description: "Erro (problem+json). Códigos: RATE_LIMITED"
+          x-error-codes:
+            - RATE_LIMITED
+          content:
+            application/problem+json:
+              schema:
+                $ref: "#/components/schemas/ProblemDetails"
+        default:
+          description: Erro não previsto (INTERNAL_ERROR) ou de plataforma (SERVICE_UNAVAILABLE)
+          content:
+            application/problem+json:
+              schema:
+                $ref: "#/components/schemas/ProblemDetails"
+  /bubbles/{id}/bids:
+    get:
+      operationId: listBids
+      tags:
+        - bids
+      summary: Lances da bolha de compra
+      x-auth: public
+      security: []
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            $ref: "#/components/schemas/Uuid"
+      responses:
+        "200":
+          description: Sucesso
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/BidListResponse"
+        "404":
+          description: "Erro (problem+json). Códigos: BUBBLE_NOT_FOUND"
+          x-error-codes:
+            - BUBBLE_NOT_FOUND
+          content:
+            application/problem+json:
+              schema:
+                $ref: "#/components/schemas/ProblemDetails"
+        "409":
+          description: "Erro (problem+json). Códigos: WRONG_BUBBLE_TYPE"
+          x-error-codes:
+            - WRONG_BUBBLE_TYPE
+          content:
+            application/problem+json:
+              schema:
+                $ref: "#/components/schemas/ProblemDetails"
+        default:
+          description: Erro não previsto (INTERNAL_ERROR) ou de plataforma (SERVICE_UNAVAILABLE)
+          content:
+            application/problem+json:
+              schema:
+                $ref: "#/components/schemas/ProblemDetails"
+    post:
+      operationId: submitBid
+      tags:
+        - bids
+      summary: Enviar ou substituir lance (1 ativo por empresa)
+      x-auth: pj-verified
+      security:
+        - bearerAuth: []
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            $ref: "#/components/schemas/Uuid"
+        - $ref: "#/components/parameters/IdempotencyKeyRequired"
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/SubmitBidRequest"
+      responses:
+        "201":
+          description: Sucesso
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  bid:
+                    $ref: "#/components/schemas/BidView"
+                  replaced_bid_id:
+                    anyOf:
+                      - $ref: "#/components/schemas/Uuid"
+                      - type: "null"
+                required:
+                  - bid
+                  - replaced_bid_id
+                additionalProperties: false
+        "400":
+          description: "Erro (problem+json). Códigos: IDEMPOTENCY_KEY_MISSING"
+          x-error-codes:
+            - IDEMPOTENCY_KEY_MISSING
+          content:
+            application/problem+json:
+              schema:
+                $ref: "#/components/schemas/ProblemDetails"
+        "401":
+          description: "Erro (problem+json). Códigos: UNAUTHENTICATED"
+          x-error-codes:
+            - UNAUTHENTICATED
+          content:
+            application/problem+json:
+              schema:
+                $ref: "#/components/schemas/ProblemDetails"
+        "403":
+          description: "Erro (problem+json). Códigos: ACCOUNT_SUSPENDED, ACCOUNT_NOT_VERIFIED"
+          x-error-codes:
+            - ACCOUNT_SUSPENDED
+            - ACCOUNT_NOT_VERIFIED
+          content:
+            application/problem+json:
+              schema:
+                $ref: "#/components/schemas/ProblemDetails"
+        "409":
+          description: "Erro (problem+json). Códigos: IDEMPOTENCY_IN_PROGRESS, WRONG_BUBBLE_TYPE, BUBBLE_NOT_ACTIVE, CREATOR_CANNOT_JOIN"
+          x-error-codes:
+            - IDEMPOTENCY_IN_PROGRESS
+            - WRONG_BUBBLE_TYPE
+            - BUBBLE_NOT_ACTIVE
+            - CREATOR_CANNOT_JOIN
+          content:
+            application/problem+json:
+              schema:
+                $ref: "#/components/schemas/ProblemDetails"
+        "422":
+          description: "Erro (problem+json). Códigos: IDEMPOTENCY_KEY_REUSED, VALIDATION_FAILED, BID_ABOVE_TARGET"
+          x-error-codes:
+            - IDEMPOTENCY_KEY_REUSED
+            - VALIDATION_FAILED
+            - BID_ABOVE_TARGET
+          content:
+            application/problem+json:
+              schema:
+                $ref: "#/components/schemas/ProblemDetails"
+        "429":
+          description: "Erro (problem+json). Códigos: RATE_LIMITED"
+          x-error-codes:
+            - RATE_LIMITED
+          content:
+            application/problem+json:
+              schema:
+                $ref: "#/components/schemas/ProblemDetails"
+        default:
+          description: Erro não previsto (INTERNAL_ERROR) ou de plataforma (SERVICE_UNAVAILABLE)
+          content:
+            application/problem+json:
+              schema:
+                $ref: "#/components/schemas/ProblemDetails"
+  /bubbles/{id}/bids/{bidId}:
+    delete:
+      operationId: withdrawBid
+      tags:
+        - bids
+      summary: Retirar lance
+      x-auth: owner
+      security:
+        - bearerAuth: []
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            $ref: "#/components/schemas/Uuid"
+        - name: bidId
+          in: path
+          required: true
+          schema:
+            $ref: "#/components/schemas/Uuid"
+      responses:
+        "200":
+          description: Sucesso
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  status:
+                    type: string
+                    const: WITHDRAWN
+                required:
+                  - status
+                additionalProperties: false
+        "401":
+          description: "Erro (problem+json). Códigos: UNAUTHENTICATED"
+          x-error-codes:
+            - UNAUTHENTICATED
+          content:
+            application/problem+json:
+              schema:
+                $ref: "#/components/schemas/ProblemDetails"
+        "403":
+          description: "Erro (problem+json). Códigos: ACCOUNT_SUSPENDED"
+          x-error-codes:
+            - ACCOUNT_SUSPENDED
+          content:
+            application/problem+json:
+              schema:
+                $ref: "#/components/schemas/ProblemDetails"
+        "404":
+          description: "Erro (problem+json). Códigos: BID_NOT_FOUND"
+          x-error-codes:
+            - BID_NOT_FOUND
+          content:
+            application/problem+json:
+              schema:
+                $ref: "#/components/schemas/ProblemDetails"
+        "409":
+          description: "Erro (problem+json). Códigos: BID_WITHDRAW_NOT_ALLOWED"
+          x-error-codes:
+            - BID_WITHDRAW_NOT_ALLOWED
+          content:
+            application/problem+json:
+              schema:
+                $ref: "#/components/schemas/ProblemDetails"
+        "429":
+          description: "Erro (problem+json). Códigos: RATE_LIMITED"
+          x-error-codes:
+            - RATE_LIMITED
+          content:
+            application/problem+json:
+              schema:
+                $ref: "#/components/schemas/ProblemDetails"
+        default:
+          description: Erro não previsto (INTERNAL_ERROR) ou de plataforma (SERVICE_UNAVAILABLE)
+          content:
+            application/problem+json:
+              schema:
+                $ref: "#/components/schemas/ProblemDetails"
+  /bubbles/{id}/bids/{bidId}/select:
+    post:
+      operationId: selectBid
+      tags:
+        - bids
+      summary: Escolher o lance vencedor (até 24 h após a explosão)
+      x-auth: creator
+      security:
+        - bearerAuth: []
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            $ref: "#/components/schemas/Uuid"
+        - name: bidId
+          in: path
+          required: true
+          schema:
+            $ref: "#/components/schemas/Uuid"
+        - $ref: "#/components/parameters/IdempotencyKeyRequired"
+      responses:
+        "200":
+          description: Sucesso
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  bubble:
+                    type: object
+                    properties:
+                      status:
+                        $ref: "#/components/schemas/BubbleStatus"
+                      selected_bid_id:
+                        $ref: "#/components/schemas/Uuid"
+                      final_price:
+                        $ref: "#/components/schemas/Cents"
+                      winner:
+                        type: object
+                        properties:
+                          pseudonym:
+                            type: string
+                          legal_name:
+                            type: string
+                        required:
+                          - pseudonym
+                          - legal_name
+                        additionalProperties: false
+                      version:
+                        type: integer
+                        minimum: 0
+                        maximum: 9007199254740991
+                    required:
+                      - status
+                      - selected_bid_id
+                      - final_price
+                      - winner
+                      - version
+                    additionalProperties: false
+                required:
+                  - bubble
+                additionalProperties: false
+        "400":
+          description: "Erro (problem+json). Códigos: IDEMPOTENCY_KEY_MISSING"
+          x-error-codes:
+            - IDEMPOTENCY_KEY_MISSING
+          content:
+            application/problem+json:
+              schema:
+                $ref: "#/components/schemas/ProblemDetails"
+        "401":
+          description: "Erro (problem+json). Códigos: UNAUTHENTICATED"
+          x-error-codes:
+            - UNAUTHENTICATED
+          content:
+            application/problem+json:
+              schema:
+                $ref: "#/components/schemas/ProblemDetails"
+        "403":
+          description: "Erro (problem+json). Códigos: ACCOUNT_SUSPENDED"
+          x-error-codes:
+            - ACCOUNT_SUSPENDED
+          content:
+            application/problem+json:
+              schema:
+                $ref: "#/components/schemas/ProblemDetails"
+        "404":
+          description: "Erro (problem+json). Códigos: BID_NOT_FOUND"
+          x-error-codes:
+            - BID_NOT_FOUND
+          content:
+            application/problem+json:
+              schema:
+                $ref: "#/components/schemas/ProblemDetails"
+        "409":
+          description: "Erro (problem+json). Códigos: IDEMPOTENCY_IN_PROGRESS, BID_SELECTION_NOT_OPEN, BID_SELECTION_WINDOW_CLOSED"
+          x-error-codes:
+            - IDEMPOTENCY_IN_PROGRESS
+            - BID_SELECTION_NOT_OPEN
+            - BID_SELECTION_WINDOW_CLOSED
+          content:
+            application/problem+json:
+              schema:
+                $ref: "#/components/schemas/ProblemDetails"
+        "422":
+          description: "Erro (problem+json). Códigos: IDEMPOTENCY_KEY_REUSED"
+          x-error-codes:
+            - IDEMPOTENCY_KEY_REUSED
+          content:
+            application/problem+json:
+              schema:
+                $ref: "#/components/schemas/ProblemDetails"
+        "429":
+          description: "Erro (problem+json). Códigos: RATE_LIMITED"
+          x-error-codes:
+            - RATE_LIMITED
+          content:
+            application/problem+json:
+              schema:
+                $ref: "#/components/schemas/ProblemDetails"
+        default:
+          description: Erro não previsto (INTERNAL_ERROR) ou de plataforma (SERVICE_UNAVAILABLE)
+          content:
+            application/problem+json:
+              schema:
+                $ref: "#/components/schemas/ProblemDetails"
+  /me/bids:
+    get:
+      operationId: listMyBids
+      tags:
+        - bids
+      summary: Meus lances (PJ)
+      x-auth: pj
+      security:
+        - bearerAuth: []
+      parameters:
+        - name: status
+          in: query
+          required: false
+          schema:
+            minItems: 1
+            type: array
+            items:
+              $ref: "#/components/schemas/BidStatus"
+          style: form
+          explode: false
+        - name: limit
+          in: query
+          required: false
+          schema:
+            default: 20
+            type: integer
+            minimum: 1
+            maximum: 100
+        - name: cursor
+          in: query
+          required: false
+          schema:
+            type: string
+            maxLength: 512
+      responses:
+        "200":
+          description: Sucesso
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  data:
+                    type: array
+                    items:
+                      $ref: "#/components/schemas/BidView"
+                required:
+                  - data
+                additionalProperties: {}
+        "401":
+          description: "Erro (problem+json). Códigos: UNAUTHENTICATED"
+          x-error-codes:
+            - UNAUTHENTICATED
+          content:
+            application/problem+json:
+              schema:
+                $ref: "#/components/schemas/ProblemDetails"
+        "403":
+          description: "Erro (problem+json). Códigos: FORBIDDEN"
+          x-error-codes:
+            - FORBIDDEN
+          content:
+            application/problem+json:
+              schema:
+                $ref: "#/components/schemas/ProblemDetails"
+        "422":
+          description: "Erro (problem+json). Códigos: VALIDATION_FAILED"
+          x-error-codes:
+            - VALIDATION_FAILED
+          content:
+            application/problem+json:
+              schema:
+                $ref: "#/components/schemas/ProblemDetails"
+        default:
+          description: Erro não previsto (INTERNAL_ERROR) ou de plataforma (SERVICE_UNAVAILABLE)
+          content:
+            application/problem+json:
+              schema:
+                $ref: "#/components/schemas/ProblemDetails"
+  /me/notifications:
+    get:
+      operationId: listNotifications
+      tags:
+        - notifications
+      summary: Minhas notificações
+      x-auth: authenticated
+      security:
+        - bearerAuth: []
+      parameters:
+        - name: unread
+          in: query
+          required: false
+          schema:
+            type: boolean
+        - name: limit
+          in: query
+          required: false
+          schema:
+            default: 20
+            type: integer
+            minimum: 1
+            maximum: 100
+        - name: cursor
+          in: query
+          required: false
+          schema:
+            type: string
+            maxLength: 512
+      responses:
+        "200":
+          description: Sucesso
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  data:
+                    type: array
+                    items:
+                      $ref: "#/components/schemas/NotificationView"
+                  page:
+                    $ref: "#/components/schemas/PageInfo"
+                required:
+                  - data
+                  - page
+                additionalProperties: false
+        "401":
+          description: "Erro (problem+json). Códigos: UNAUTHENTICATED"
+          x-error-codes:
+            - UNAUTHENTICATED
+          content:
+            application/problem+json:
+              schema:
+                $ref: "#/components/schemas/ProblemDetails"
+        "422":
+          description: "Erro (problem+json). Códigos: VALIDATION_FAILED"
+          x-error-codes:
+            - VALIDATION_FAILED
+          content:
+            application/problem+json:
+              schema:
+                $ref: "#/components/schemas/ProblemDetails"
+        default:
+          description: Erro não previsto (INTERNAL_ERROR) ou de plataforma (SERVICE_UNAVAILABLE)
+          content:
+            application/problem+json:
+              schema:
+                $ref: "#/components/schemas/ProblemDetails"
+  /me/notifications/{id}/read:
+    post:
+      operationId: markNotificationRead
+      tags:
+        - notifications
+      summary: Marcar notificação como lida
+      x-auth: owner
+      security:
+        - bearerAuth: []
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            $ref: "#/components/schemas/Uuid"
+      responses:
+        "204":
+          description: Sem conteúdo
+        "401":
+          description: "Erro (problem+json). Códigos: UNAUTHENTICATED"
+          x-error-codes:
+            - UNAUTHENTICATED
+          content:
+            application/problem+json:
+              schema:
+                $ref: "#/components/schemas/ProblemDetails"
+        "404":
+          description: "Erro (problem+json). Códigos: NOT_FOUND"
+          x-error-codes:
+            - NOT_FOUND
+          content:
+            application/problem+json:
+              schema:
+                $ref: "#/components/schemas/ProblemDetails"
+        default:
+          description: Erro não previsto (INTERNAL_ERROR) ou de plataforma (SERVICE_UNAVAILABLE)
+          content:
+            application/problem+json:
+              schema:
+                $ref: "#/components/schemas/ProblemDetails"
+  /me/notifications/read-all:
+    post:
+      operationId: markAllNotificationsRead
+      tags:
+        - notifications
+      summary: Marcar todas como lidas
+      x-auth: authenticated
+      security:
+        - bearerAuth: []
+      responses:
+        "204":
+          description: Sem conteúdo
+        "401":
+          description: "Erro (problem+json). Códigos: UNAUTHENTICATED"
+          x-error-codes:
+            - UNAUTHENTICATED
+          content:
+            application/problem+json:
+              schema:
+                $ref: "#/components/schemas/ProblemDetails"
+        default:
+          description: Erro não previsto (INTERNAL_ERROR) ou de plataforma (SERVICE_UNAVAILABLE)
+          content:
+            application/problem+json:
+              schema:
+                $ref: "#/components/schemas/ProblemDetails"
+components:
+  securitySchemes:
+    bearerAuth:
+      type: http
+      scheme: bearer
+      bearerFormat: JWT
+    refreshCookie:
+      type: apiKey
+      in: cookie
+      name: __Host-bv_rt
+  parameters:
+    IdempotencyKeyRequired:
+      name: Idempotency-Key
+      in: header
+      required: true
+      description: UUID por intenção do usuário (api-rest §1.3).
+      schema:
+        type: string
+        format: uuid
+    IdempotencyKeyOptional:
+      name: Idempotency-Key
+      in: header
+      required: false
+      description: Recomendado (api-rest §1.3).
+      schema:
+        type: string
+        format: uuid
+    IfMatch:
+      name: If-Match
+      in: header
+      required: true
+      description: ETag "v{version}" (concorrência otimista).
+      schema:
+        type: string
+    CsrfToken:
+      name: X-CSRF-Token
+      in: header
+      required: true
+      description: Double-submit do cookie bv_csrf.
+      schema:
+        type: string
+  schemas:
+    AccountStatus:
+      type: string
+      enum:
+        - PENDING_EMAIL_CONFIRMATION
+        - INCOMPLETE
+        - ACTIVE
+        - SUSPENDED
+    AccountSummary:
+      type: object
+      properties:
+        account_type:
+          $ref: "#/components/schemas/AccountType"
+        pseudonym:
+          $ref: "#/components/schemas/Pseudonym"
+        status:
+          $ref: "#/components/schemas/AccountStatus"
+        company:
+          anyOf:
+            - $ref: "#/components/schemas/CompanyInfo"
+            - type: "null"
+      required:
+        - id
+        - account_type
+        - pseudonym
+      additionalProperties: false
+    AccountType:
+      type: string
+      enum:
+        - PF
+        - PJ
+    AcquireQuotaRequest:
+      type: object
+      properties:
+        quantity:
+          default: 1
+          type: integer
+          minimum: 1
+          maximum: 10000
+        payment:
+          oneOf:
+            - type: object
+              properties:
+                method:
+                  type: string
+                  const: CARD
+                card_token:
+                  type: string
+                  minLength: 1
+                  maxLength: 512
+                installments:
+                  default: 1
+                  type: integer
+                  minimum: 1
+                  maximum: 12
+              required:
+                - method
+                - card_token
+              additionalProperties: false
+            - type: object
+              properties:
+                method:
+                  type: string
+                  const: PIX
+              required:
+                - method
+              additionalProperties: false
+      required:
+        - payment
+      additionalProperties: false
+    AcquireQuotaResponse:
+      type: object
+      properties:
+        quota:
+          $ref: "#/components/schemas/QuotaView"
+        payment:
+          $ref: "#/components/schemas/PaymentSummary"
+        bubble:
+          $ref: "#/components/schemas/BubbleStatePatch"
+        pix:
+          type: object
+          properties:
+            qr_code:
+              type: string
+            qr_code_image_url:
+              type: string
+              format: uri
+            expires_at:
+              $ref: "#/components/schemas/IsoDateTime"
+          required:
+            - qr_code
+            - qr_code_image_url
+            - expires_at
+          additionalProperties: false
+      required:
+        - quota
+        - payment
+        - bubble
+      additionalProperties: false
+    BidListResponse:
+      type: object
+      properties:
+        data:
+          type: array
+          items:
+            $ref: "#/components/schemas/BidView"
+        summary:
+          type: object
+          properties:
+            bids_count:
+              type: integer
+              minimum: 0
+              maximum: 9007199254740991
+            best_price:
+              anyOf:
+                - $ref: "#/components/schemas/Cents"
+                - type: "null"
+            target_price:
+              $ref: "#/components/schemas/Cents"
+          required:
+            - bids_count
+            - best_price
+            - target_price
+          additionalProperties: false
+        page:
+          $ref: "#/components/schemas/PageInfo"
+      required:
+        - data
+        - summary
+        - page
+      additionalProperties: false
+    BidStatus:
+      type: string
+      enum:
+        - ACTIVE
+        - WITHDRAWN
+        - SELECTED
+        - NOT_SELECTED
+    BidView:
+      type: object
+      properties:
+        bidder:
+          type: object
+          properties:
+            pseudonym:
+              type: string
+            score_band:
+              $ref: "#/components/schemas/ScoreBand"
+            score:
+              type: integer
+              minimum: 0
+              maximum: 1000
+          required:
+            - pseudonym
+            - score_band
+          additionalProperties: false
+        unit_price:
+          $ref: "#/components/schemas/Cents"
+        delivery_days:
+          type: integer
+          exclusiveMinimum: 0
+          maximum: 9007199254740991
+        conditions:
+          type: string
+          maxLength: 1000
+        status:
+          $ref: "#/components/schemas/BidStatus"
+        submitted_at:
+          $ref: "#/components/schemas/IsoDateTime"
+        valid_until:
+          $ref: "#/components/schemas/IsoDateTime"
+        is_mine:
+          type: boolean
+      required:
+        - id
+        - bidder
+        - unit_price
+        - delivery_days
+        - status
+        - submitted_at
+      additionalProperties: false
+    BubbleAction:
+      type: string
+      enum:
+        - JOIN_QUOTA
+        - LEAVE_QUOTA
+        - SUBMIT_BID
+        - WITHDRAW_BID
+        - SELECT_BID
+        - PUBLISH
+        - EDIT
+        - EDIT_CONTENT
+        - CANCEL
+        - REPORT
+    BubbleDetail:
+      type: object
+      properties:
+        type:
+          $ref: "#/components/schemas/BubbleType"
+        status:
+          $ref: "#/components/schemas/BubbleStatus"
+        title:
+          type: string
+        category:
+          $ref: "#/components/schemas/CategoryRef"
+        image_url:
+          anyOf:
+            - type: string
+              format: uri
+            - type: "null"
+        creator:
+          $ref: "#/components/schemas/PublicCreator"
+        currency:
+          $ref: "#/components/schemas/Currency"
+        initial_price:
+          anyOf:
+            - $ref: "#/components/schemas/Cents"
+            - type: "null"
+        target_price:
+          anyOf:
+            - $ref: "#/components/schemas/Cents"
+            - type: "null"
+        current_price:
+          anyOf:
+            - $ref: "#/components/schemas/Cents"
+            - type: "null"
+        next_tier:
+          anyOf:
+            - $ref: "#/components/schemas/NextTier"
+            - type: "null"
+        min_quotas:
+          type: integer
+          exclusiveMinimum: 0
+          maximum: 9007199254740991
+        max_quotas:
+          type: integer
+          exclusiveMinimum: 0
+          maximum: 9007199254740991
+        filled_quotas:
+          type: integer
+          minimum: 0
+          maximum: 9007199254740991
+        reserved_quotas:
+          type: integer
+          minimum: 0
+          maximum: 9007199254740991
+        available_quotas:
+          type: integer
+          minimum: 0
+          maximum: 9007199254740991
+        is_near_full:
+          type: boolean
+        is_expiring:
+          type: boolean
+        starts_at:
+          anyOf:
+            - $ref: "#/components/schemas/IsoDateTime"
+            - type: "null"
+        expires_at:
+          anyOf:
+            - $ref: "#/components/schemas/IsoDateTime"
+            - type: "null"
+        exploded_at:
+          anyOf:
+            - $ref: "#/components/schemas/IsoDateTime"
+            - type: "null"
+        canvas_x:
+          type: number
+        canvas_y:
+          type: number
+        radius:
+          type: number
+          exclusiveMinimum: 0
+        version:
+          type: integer
+          minimum: 0
+          maximum: 9007199254740991
+        description:
+          type:
+            - string
+            - "null"
+        images:
+          maxItems: 5
+          type: array
+          items:
+            type: object
+            properties:
+              url:
+                type: string
+                format: uri
+              alt:
+                type:
+                  - string
+                  - "null"
+            required:
+              - url
+            additionalProperties: false
+        price_tiers:
+          type: array
+          items:
+            type: object
+            properties:
+              min_filled_quotas:
+                type: integer
+                minimum: 0
+                maximum: 9007199254740991
+              unit_price:
+                $ref: "#/components/schemas/Cents"
+              reached:
+                type: boolean
+            required:
+              - min_filled_quotas
+              - unit_price
+              - reached
+            additionalProperties: false
+        max_pj_share:
+          type: number
+          minimum: 0.1
+          maximum: 1
+        shipping_days:
+          type: integer
+          minimum: -9007199254740991
+          maximum: 9007199254740991
+        outcome:
+          anyOf:
+            - $ref: "#/components/schemas/ExplosionOutcome"
+            - type: "null"
+        explosion_reason:
+          anyOf:
+            - $ref: "#/components/schemas/ExplosionReason"
+            - type: "null"
+        final_price:
+          anyOf:
+            - $ref: "#/components/schemas/Cents"
+            - type: "null"
+        selected_bid_id:
+          anyOf:
+            - $ref: "#/components/schemas/Uuid"
+            - type: "null"
+        winner:
+          anyOf:
+            - type: object
+              properties:
+                pseudonym:
+                  type: string
+                legal_name:
+                  type: string
+              required:
+                - pseudonym
+              additionalProperties: false
+            - type: "null"
+        bids_count:
+          type: integer
+          minimum: 0
+          maximum: 9007199254740991
+        bid_selection_deadline:
+          anyOf:
+            - $ref: "#/components/schemas/IsoDateTime"
+            - type: "null"
+        participants_preview:
+          type: array
+          items:
+            type: string
+        my_participation:
+          anyOf:
+            - $ref: "#/components/schemas/MyParticipation"
+            - type: "null"
+        allowed_actions:
+          type: array
+          items:
+            $ref: "#/components/schemas/BubbleAction"
+        blocked_actions:
+          type: array
+          items:
+            type: object
+            properties:
+              action:
+                $ref: "#/components/schemas/BubbleAction"
+              code:
+                type: string
+            required:
+              - action
+              - code
+            additionalProperties: false
+        server_time:
+          $ref: "#/components/schemas/IsoDateTime"
+      required:
+        - id
+        - type
+        - status
+        - max_quotas
+        - filled_quotas
+        - reserved_quotas
+        - is_near_full
+        - is_expiring
+        - canvas_x
+        - canvas_y
+        - radius
+        - version
+      additionalProperties: false
+    BubblePage:
+      type: object
+      properties:
+        data:
+          type: array
+          items:
+            $ref: "#/components/schemas/BubbleSummary"
+        page:
+          $ref: "#/components/schemas/PageInfo"
+      required:
+        - data
+        - page
+      additionalProperties: false
+    BubbleStatePatch:
+      type: object
+      properties:
+        filled_quotas:
+          type: integer
+          minimum: 0
+          maximum: 9007199254740991
+        reserved_quotas:
+          type: integer
+          minimum: 0
+          maximum: 9007199254740991
+        available_quotas:
+          type: integer
+          minimum: 0
+          maximum: 9007199254740991
+        current_price:
+          anyOf:
+            - $ref: "#/components/schemas/Cents"
+            - type: "null"
+        next_tier:
+          anyOf:
+            - $ref: "#/components/schemas/NextTier"
+            - type: "null"
+        is_near_full:
+          type: boolean
+        status:
+          $ref: "#/components/schemas/BubbleStatus"
+        version:
+          type: integer
+          minimum: 0
+          maximum: 9007199254740991
+      required:
+        - filled_quotas
+        - version
+      additionalProperties: false
+    BubbleStatus:
+      type: string
+      enum:
+        - DRAFT
+        - ACTIVE
+        - EXPIRED_SUCCESS
+        - EXPIRED_FAILED
+        - IN_TRIAGE
+        - COMPLETED
+        - CANCELLED
+    BubbleSummary:
+      type: object
+      properties:
+        type:
+          $ref: "#/components/schemas/BubbleType"
+        status:
+          $ref: "#/components/schemas/BubbleStatus"
+        title:
+          type: string
+        category:
+          $ref: "#/components/schemas/CategoryRef"
+        image_url:
+          anyOf:
+            - type: string
+              format: uri
+            - type: "null"
+        creator:
+          $ref: "#/components/schemas/PublicCreator"
+        currency:
+          $ref: "#/components/schemas/Currency"
+        initial_price:
+          anyOf:
+            - $ref: "#/components/schemas/Cents"
+            - type: "null"
+        target_price:
+          anyOf:
+            - $ref: "#/components/schemas/Cents"
+            - type: "null"
+        current_price:
+          anyOf:
+            - $ref: "#/components/schemas/Cents"
+            - type: "null"
+        next_tier:
+          anyOf:
+            - $ref: "#/components/schemas/NextTier"
+            - type: "null"
+        min_quotas:
+          type: integer
+          exclusiveMinimum: 0
+          maximum: 9007199254740991
+        max_quotas:
+          type: integer
+          exclusiveMinimum: 0
+          maximum: 9007199254740991
+        filled_quotas:
+          type: integer
+          minimum: 0
+          maximum: 9007199254740991
+        reserved_quotas:
+          type: integer
+          minimum: 0
+          maximum: 9007199254740991
+        available_quotas:
+          type: integer
+          minimum: 0
+          maximum: 9007199254740991
+        is_near_full:
+          type: boolean
+        is_expiring:
+          type: boolean
+        starts_at:
+          anyOf:
+            - $ref: "#/components/schemas/IsoDateTime"
+            - type: "null"
+        expires_at:
+          anyOf:
+            - $ref: "#/components/schemas/IsoDateTime"
+            - type: "null"
+        exploded_at:
+          anyOf:
+            - $ref: "#/components/schemas/IsoDateTime"
+            - type: "null"
+        canvas_x:
+          type: number
+        canvas_y:
+          type: number
+        radius:
+          type: number
+          exclusiveMinimum: 0
+        version:
+          type: integer
+          minimum: 0
+          maximum: 9007199254740991
+      required:
+        - id
+        - type
+        - status
+        - max_quotas
+        - filled_quotas
+        - reserved_quotas
+        - is_near_full
+        - is_expiring
+        - canvas_x
+        - canvas_y
+        - radius
+        - version
+      additionalProperties: false
+    BubbleType:
+      type: string
+      enum:
+        - SALE
+        - PURCHASE
+    BubbleViewportResponse:
+      type: object
+      properties:
+        data:
+          maxItems: 500
+          type: array
+          items:
+            $ref: "#/components/schemas/BubbleSummary"
+        bbox:
+          type: array
+          prefixItems:
+            - type: number
+            - type: number
+            - type: number
+            - type: number
+          items: false
+          minItems: 4
+          maxItems: 4
+        zoom:
+          type: number
+        lod:
+          $ref: "#/components/schemas/Lod"
+        truncated:
+          type: boolean
+        server_time:
+          $ref: "#/components/schemas/IsoDateTime"
+        tiles:
+          type: array
+          items:
+            type: string
+      required:
+        - data
+        - bbox
+        - zoom
+        - lod
+        - truncated
+        - server_time
+        - tiles
+      additionalProperties: false
+    Category:
+      type: object
+      properties:
+        name:
+          type: string
+        prohibited:
+          type: boolean
+      required:
+        - id
+        - name
+        - prohibited
+      additionalProperties: false
+    CategoryRef:
+      type: object
+      properties:
+        name:
+          type: string
+      required:
+        - id
+        - name
+      additionalProperties: false
+    Cents:
+      type: integer
+      minimum: 0
+      maximum: 9007199254740991
+      description: Valor em centavos inteiros (BRL).
+    CompanyInfo:
+      type: object
+      properties:
+        verification_status:
+          $ref: "#/components/schemas/VerificationStatus"
+        legal_name:
+          type:
+            - string
+            - "null"
+        cnae:
+          type:
+            - string
+            - "null"
+        verified_at:
+          anyOf:
+            - $ref: "#/components/schemas/IsoDateTime"
+            - type: "null"
+        next_revalidation_at:
+          anyOf:
+            - $ref: "#/components/schemas/IsoDateTime"
+            - type: "null"
+        next_attempt_at:
+          anyOf:
+            - $ref: "#/components/schemas/IsoDateTime"
+            - type: "null"
+      required:
+        - verification_status
+        - legal_name
+        - cnae
+        - verified_at
+        - next_revalidation_at
+      additionalProperties: false
+    CreateBubbleRequest:
+      oneOf:
+        - type: object
+          properties:
+            type:
+              type: string
+              const: SALE
+            title:
+              type: string
+              minLength: 5
+              maxLength: 80
+            description:
+              type: string
+              maxLength: 2000
+            category_id:
+              type: string
+              minLength: 1
+              maxLength: 64
+            image_upload_ids:
+              default: []
+              maxItems: 5
+              type: array
+              items:
+                $ref: "#/components/schemas/Uuid"
+            max_quotas:
+              type: integer
+              minimum: 2
+              maximum: 10000
+            min_quotas:
+              type: integer
+              minimum: 1
+              maximum: 10000
+            max_pj_share:
+              default: 0.5
+              type: number
+              minimum: 0.1
+              maximum: 1
+            duration_minutes:
+              type: integer
+              minimum: 60
+              maximum: 7200
+            price_tiers:
+              minItems: 1
+              maxItems: 10
+              type: array
+              items:
+                $ref: "#/components/schemas/PriceTier"
+            shipping_days:
+              default: 7
+              type: integer
+              minimum: 1
+              maximum: 30
+          required:
+            - type
+            - title
+            - category_id
+            - max_quotas
+            - duration_minutes
+            - price_tiers
+          additionalProperties: false
+        - type: object
+          properties:
+            type:
+              type: string
+              const: PURCHASE
+            title:
+              type: string
+              minLength: 5
+              maxLength: 80
+            description:
+              type: string
+              maxLength: 2000
+            category_id:
+              type: string
+              minLength: 1
+              maxLength: 64
+            image_upload_ids:
+              default: []
+              maxItems: 5
+              type: array
+              items:
+                $ref: "#/components/schemas/Uuid"
+            max_quotas:
+              type: integer
+              minimum: 2
+              maximum: 10000
+            min_quotas:
+              type: integer
+              minimum: 1
+              maximum: 10000
+            max_pj_share:
+              default: 0.5
+              type: number
+              minimum: 0.1
+              maximum: 1
+            duration_minutes:
+              type: integer
+              minimum: 60
+              maximum: 7200
+            target_price:
+              minimum: 100
+              $ref: "#/components/schemas/Cents"
+            suggested_suppliers:
+              default: []
+              maxItems: 5
+              type: array
+              items:
+                anyOf:
+                  - type: object
+                    properties:
+                      cnpj:
+                        type: string
+                        pattern: ^\d{2}\.?\d{3}\.?\d{3}\/?\d{4}-?\d{2}$
+                    required:
+                      - cnpj
+                    additionalProperties: false
+                  - type: object
+                    properties:
+                      email:
+                        type: string
+                        format: email
+                        pattern: ^(?:[A-Za-z0-9_'+\-]+\.)*[A-Za-z0-9_'+\-]*[A-Za-z0-9_+-]@(?:[A-Za-z0-9][A-Za-z0-9\-]*\.)+[A-Za-z]{2,}$
+                    required:
+                      - email
+                    additionalProperties: false
+          required:
+            - type
+            - title
+            - category_id
+            - max_quotas
+            - duration_minutes
+            - target_price
+          additionalProperties: false
+    Currency:
+      type: string
+      const: BRL
+    DataExportResponse:
+      type: object
+      properties:
+        status:
+          type: string
+          enum:
+            - PROCESSING
+            - READY
+            - EXPIRED
+            - FAILED
+        due_by:
+          $ref: "#/components/schemas/IsoDateTime"
+        download_url:
+          type: string
+          format: uri
+        expires_at:
+          $ref: "#/components/schemas/IsoDateTime"
+      required:
+        - id
+        - status
+      additionalProperties: false
+    ErrorCode:
+      type: string
+      enum:
+        - VALIDATION_FAILED
+        - UNAUTHENTICATED
+        - TOKEN_EXPIRED
+        - REFRESH_TOKEN_REUSED
+        - FORBIDDEN
+        - ACCOUNT_SUSPENDED
+        - ACCOUNT_INCOMPLETE
+        - NOT_FOUND
+        - VERSION_CONFLICT
+        - IDEMPOTENCY_KEY_MISSING
+        - IDEMPOTENCY_KEY_REUSED
+        - IDEMPOTENCY_IN_PROGRESS
+        - RATE_LIMITED
+        - CAPTCHA_REQUIRED
+        - SERVICE_UNAVAILABLE
+        - INTERNAL_ERROR
+        - INVALID_CREDENTIALS
+        - DOCUMENT_ALREADY_REGISTERED
+        - CPF_INVALID
+        - CNPJ_INVALID
+        - CNPJ_NOT_ACTIVE
+        - ACCOUNT_NOT_VERIFIED
+        - RECIPIENT_NOT_REGISTERED
+        - CONSENT_REQUIRED
+        - NICKNAME_UNAVAILABLE
+        - EXPORT_ALREADY_IN_PROGRESS
+        - DELETION_BLOCKED_OBLIGATIONS
+        - BUBBLE_NOT_FOUND
+        - BUBBLE_NOT_DRAFT
+        - FIELD_LOCKED_AFTER_PUBLISH
+        - BUBBLE_NOT_ACTIVE
+        - BUBBLE_EXIT_LOCKED
+        - BUBBLE_HAS_QUOTAS
+        - INVALID_PRICE_TIERS
+        - INVALID_DURATION
+        - INVALID_QUOTA_RANGE
+        - INVALID_PJ_SHARE
+        - INVALID_SHIPPING_DAYS
+        - WRONG_BUBBLE_TYPE
+        - QUOTA_SOLD_OUT
+        - PIX_UNAVAILABLE_LATE
+        - PIX_TEMPORARILY_BLOCKED
+        - CREATOR_QUOTA_NOT_AUTHORIZED
+        - PF_QUOTA_LIMIT
+        - PJ_SHARE_EXCEEDED
+        - CREATOR_CANNOT_JOIN
+        - PAYMENT_DECLINED
+        - QUOTA_EXCEEDS_AVAILABLE
+        - QUOTA_NOT_FOUND
+        - PAYMENT_METHOD_UNSUPPORTED
+        - PAYMENT_PROVIDER_UNAVAILABLE
+        - PIX_RESERVATION_EXPIRED
+        - WEBHOOK_SIGNATURE_INVALID
+        - BID_ABOVE_TARGET
+        - BID_NOT_FOUND
+        - BID_WITHDRAW_NOT_ALLOWED
+        - BID_SELECTION_NOT_OPEN
+        - BID_SELECTION_WINDOW_CLOSED
+        - TRIAGE_INVALID_TRANSITION
+        - SHIPPING_DEADLINE_PASSED
+        - WITHDRAWAL_WINDOW_CLOSED
+        - TRIAGE_CASE_ALREADY_OPEN
+        - TRIAGE_CASE_WINDOW_CLOSED
+        - TRIAGE_NOT_LATE
+        - DISPUTE_WINDOW_CLOSED
+        - DISPUTE_ALREADY_OPEN
+        - SCORE_EVENT_NOT_DISPUTABLE
+        - REPORT_ALREADY_SUBMITTED
+      description: Catálogo de códigos (api-rest.md §1.4.1). Novos códigos são aditivos.
+    ExplosionOutcome:
+      type: string
+      enum:
+        - SUCCESS
+        - FAILED
+    ExplosionReason:
+      type: string
+      enum:
+        - TIME
+        - FULL
+    FieldError:
+      type: object
+      properties:
+        field:
+          type: string
+        code:
+          type: string
+        message:
+          type: string
+      required:
+        - field
+        - code
+        - message
+      additionalProperties: false
+    GenericAcceptedResponse:
+      type: object
+      properties:
+        status:
+          type: string
+          const: ACCEPTED
+        message:
+          type: string
+          const: Se houver uma conta com este e-mail, enviaremos as instruções.
+      required:
+        - status
+        - message
+      additionalProperties: false
+      description: "Resposta genérica e constante: igual exista ou não conta com o e-mail (anti-enumeração)."
+    IsoDateTime:
+      type: string
+      format: date-time
+      pattern: ^(?:(?:\d\d[2468][048]|\d\d[13579][26]|\d\d0[48]|[02468][048]00|[13579][26]00)-02-29|\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\d|30)|(?:02)-(?:0[1-9]|1\d|2[0-8])))T(?:(?:[01]\d|2[0-3]):[0-5]\d:[0-5]\d(?:\.\d+)?(?:Z))$
+      description: Instante ISO 8601 em UTC (sufixo Z).
+    LeaveQuotaResponse:
+      type: object
+      properties:
+        released_quantity:
+          type: integer
+          exclusiveMinimum: 0
+          maximum: 9007199254740991
+        refund:
+          type: object
+          properties:
+            status:
+              type: string
+              enum:
+                - PROCESSING
+                - COMPLETED
+                - NOT_APPLICABLE
+            amount:
+              $ref: "#/components/schemas/Cents"
+          required:
+            - status
+            - amount
+          additionalProperties: false
+        bubble:
+          $ref: "#/components/schemas/BubbleStatePatch"
+      required:
+        - released_quantity
+        - refund
+        - bubble
+      additionalProperties: false
+    Lod:
+      type: string
+      enum:
+        - LOW
+        - MEDIUM
+        - HIGH
+    MeResponse:
+      type: object
+      properties:
+        account_type:
+          $ref: "#/components/schemas/AccountType"
+        pseudonym:
+          $ref: "#/components/schemas/Pseudonym"
+        name:
+          type: string
+        email:
+          type: string
+        document_masked:
+          type: string
+        status:
+          $ref: "#/components/schemas/AccountStatus"
+        roles:
+          type: array
+          items:
+            type: string
+            enum:
+              - user
+              - moderator
+              - admin
+        score:
+          type: object
+          properties:
+            value:
+              type: integer
+              minimum: 0
+              maximum: 1000
+            band:
+              $ref: "#/components/schemas/ScoreBand"
+            model_version:
+              type: string
+          required:
+            - value
+            - band
+            - model_version
+          additionalProperties: false
+        company:
+          anyOf:
+            - $ref: "#/components/schemas/CompanyInfo"
+            - type: "null"
+        payout_recipient:
+          type: object
+          properties:
+            status:
+              type: string
+              enum:
+                - NOT_REGISTERED
+                - PENDING_REVIEW
+                - APPROVED
+                - REJECTED
+          required:
+            - status
+          additionalProperties: false
+        consents:
+          type: object
+          properties:
+            terms:
+              type: string
+              format: date
+              pattern: ^(?:(?:\d\d[2468][048]|\d\d[13579][26]|\d\d0[48]|[02468][048]00|[13579][26]00)-02-29|\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\d|30)|(?:02)-(?:0[1-9]|1\d|2[0-8])))$
+            privacy:
+              type: string
+              format: date
+              pattern: ^(?:(?:\d\d[2468][048]|\d\d[13579][26]|\d\d0[48]|[02468][048]00|[13579][26]00)-02-29|\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\d|30)|(?:02)-(?:0[1-9]|1\d|2[0-8])))$
+            marketing:
+              type: boolean
+          required:
+            - terms
+            - privacy
+            - marketing
+          additionalProperties: false
+        preferences:
+          type: object
+          properties:
+            reduce_motion:
+              type: boolean
+          required:
+            - reduce_motion
+          additionalProperties: false
+      required:
+        - id
+        - account_type
+        - pseudonym
+        - name
+        - email
+        - document_masked
+        - status
+        - roles
+        - score
+        - company
+        - payout_recipient
+        - consents
+        - preferences
+      additionalProperties: false
+    MyParticipation:
+      type: object
+      properties:
+        quota_count:
+          type: integer
+          exclusiveMinimum: 0
+          maximum: 9007199254740991
+        quota_id:
+          $ref: "#/components/schemas/Uuid"
+        quota_status:
+          $ref: "#/components/schemas/QuotaStatus"
+        reserved_amount:
+          $ref: "#/components/schemas/Cents"
+        payment_status:
+          $ref: "#/components/schemas/PaymentStatus"
+      required:
+        - quota_count
+        - quota_id
+        - quota_status
+        - reserved_amount
+        - payment_status
+      additionalProperties: false
+    MyQuotasResponse:
+      type: object
+      properties:
+        data:
+          type: array
+          items:
+            type: object
+            properties:
+              quota_id:
+                $ref: "#/components/schemas/Uuid"
+              quantity:
+                type: integer
+                exclusiveMinimum: 0
+                maximum: 9007199254740991
+              status:
+                $ref: "#/components/schemas/QuotaStatus"
+              bubble:
+                type: object
+                properties:
+                  type:
+                    $ref: "#/components/schemas/BubbleType"
+                  title:
+                    type: string
+                  status:
+                    $ref: "#/components/schemas/BubbleStatus"
+                  current_price:
+                    anyOf:
+                      - $ref: "#/components/schemas/Cents"
+                      - type: "null"
+                  expires_at:
+                    anyOf:
+                      - $ref: "#/components/schemas/IsoDateTime"
+                      - type: "null"
+                  is_expiring:
+                    type: boolean
+                required:
+                  - id
+                  - type
+                  - title
+                  - status
+                  - current_price
+                  - expires_at
+                  - is_expiring
+                additionalProperties: false
+              payment:
+                $ref: "#/components/schemas/PaymentSummary"
+              triage_item_id:
+                anyOf:
+                  - $ref: "#/components/schemas/Uuid"
+                  - type: "null"
+            required:
+              - quota_id
+              - quantity
+              - status
+              - bubble
+              - payment
+              - triage_item_id
+            additionalProperties: false
+        page:
+          $ref: "#/components/schemas/PageInfo"
+      required:
+        - data
+        - page
+      additionalProperties: false
+    NextTier:
+      type: object
+      properties:
+        min_filled_quotas:
+          type: integer
+          minimum: 0
+          maximum: 9007199254740991
+        unit_price:
+          $ref: "#/components/schemas/Cents"
+        quotas_to_go:
+          type: integer
+          minimum: 0
+          maximum: 9007199254740991
+      required:
+        - min_filled_quotas
+        - unit_price
+        - quotas_to_go
+      additionalProperties: false
+    NotificationView:
+      type: object
+      properties:
+        type:
+          type: string
+        title:
+          type: string
+        body:
+          type: string
+        link:
+          type:
+            - string
+            - "null"
+        read_at:
+          anyOf:
+            - $ref: "#/components/schemas/IsoDateTime"
+            - type: "null"
+        created_at:
+          $ref: "#/components/schemas/IsoDateTime"
+      required:
+        - id
+        - type
+        - title
+        - created_at
+      additionalProperties: false
+    PageInfo:
+      type: object
+      properties:
+        next_cursor:
+          type:
+            - string
+            - "null"
+        has_more:
+          type: boolean
+        limit:
+          type: integer
+          minimum: 1
+          maximum: 100
+      required:
+        - next_cursor
+        - has_more
+        - limit
+      additionalProperties: false
+    PaymentDetail:
+      type: object
+      properties:
+        bubble_id:
+          $ref: "#/components/schemas/Uuid"
+        quota_id:
+          anyOf:
+            - $ref: "#/components/schemas/Uuid"
+            - type: "null"
+        method:
+          $ref: "#/components/schemas/PaymentMethod"
+        status:
+          $ref: "#/components/schemas/PaymentStatus"
+        currency:
+          $ref: "#/components/schemas/Currency"
+        authorized_amount:
+          anyOf:
+            - $ref: "#/components/schemas/Cents"
+            - type: "null"
+        captured_amount:
+          anyOf:
+            - $ref: "#/components/schemas/Cents"
+            - type: "null"
+        released_amount:
+          anyOf:
+            - $ref: "#/components/schemas/Cents"
+            - type: "null"
+        card:
+          anyOf:
+            - type: object
+              properties:
+                brand:
+                  type: string
+                last4:
+                  type: string
+                  pattern: ^\d{4}$
+              required:
+                - brand
+                - last4
+              additionalProperties: false
+            - type: "null"
+        events:
+          type: array
+          items:
+            type: object
+            properties:
+              type:
+                type: string
+              at:
+                $ref: "#/components/schemas/IsoDateTime"
+              amount:
+                anyOf:
+                  - $ref: "#/components/schemas/Cents"
+                  - type: "null"
+            required:
+              - type
+              - at
+            additionalProperties: false
+      required:
+        - id
+        - bubble_id
+        - quota_id
+        - method
+        - status
+        - currency
+        - authorized_amount
+        - captured_amount
+        - released_amount
+        - events
+      additionalProperties: false
+    PaymentMethod:
+      type: string
+      enum:
+        - CARD
+        - PIX
+    PaymentStatus:
+      type: string
+      enum:
+        - PENDING
+        - AUTHORIZED
+        - CAPTURED
+        - PARTIALLY_REFUNDED
+        - REFUNDED
+        - FAILED
+        - EXPIRED
+        - CANCELLED
+    PaymentSummary:
+      type: object
+      properties:
+        method:
+          $ref: "#/components/schemas/PaymentMethod"
+        status:
+          $ref: "#/components/schemas/PaymentStatus"
+        authorized_amount:
+          anyOf:
+            - $ref: "#/components/schemas/Cents"
+            - type: "null"
+        currency:
+          $ref: "#/components/schemas/Currency"
+      required:
+        - method
+        - status
+      additionalProperties: false
+    PriceTier:
+      type: object
+      properties:
+        min_filled_quotas:
+          type: integer
+          minimum: 0
+          maximum: 9007199254740991
+        unit_price:
+          minimum: 100
+          $ref: "#/components/schemas/Cents"
+      required:
+        - min_filled_quotas
+        - unit_price
+      additionalProperties: false
+    ProblemDetails:
+      type: object
+      properties:
+        type:
+          type: string
+          format: uri
+        title:
+          type: string
+        status:
+          type: integer
+          minimum: 400
+          maximum: 599
+        detail:
+          type: string
+        instance:
+          type: string
+        code:
+          type: string
+          pattern: ^[A-Z][A-Z0-9_]*$
+        trace_id:
+          type: string
+        errors:
+          type: array
+          items:
+            $ref: "#/components/schemas/FieldError"
+      required:
+        - type
+        - title
+        - status
+        - code
+      additionalProperties: {}
+      description: Erro RFC 9457 (application/problem+json). `code` segue o catálogo de api-rest.md §1.4.1; membros de extensão variam por código.
+    Pseudonym:
+      type: string
+      pattern: ^.{1,32}#[0-9A-F]{4}$
+    PublicCreator:
+      type: object
+      properties:
+        pseudonym:
+          type: string
+        account_type:
+          $ref: "#/components/schemas/AccountType"
+        score_band:
+          $ref: "#/components/schemas/ScoreBand"
+        score:
+          type: integer
+          minimum: 0
+          maximum: 1000
+      required:
+        - pseudonym
+        - account_type
+        - score_band
+      additionalProperties: false
+    QuotaStatus:
+      type: string
+      enum:
+        - RESERVED
+        - ACTIVE
+        - CAPTURED
+        - RELEASED
+        - REFUNDED
+    QuotaView:
+      type: object
+      properties:
+        bubble_id:
+          $ref: "#/components/schemas/Uuid"
+        quantity:
+          type: integer
+          exclusiveMinimum: 0
+          maximum: 9007199254740991
+        status:
+          $ref: "#/components/schemas/QuotaStatus"
+        acquired_at:
+          anyOf:
+            - $ref: "#/components/schemas/IsoDateTime"
+            - type: "null"
+        reserved_until:
+          anyOf:
+            - $ref: "#/components/schemas/IsoDateTime"
+            - type: "null"
+      required:
+        - id
+        - bubble_id
+        - quantity
+        - status
+      additionalProperties: false
+    RegisterAcceptedResponse:
+      type: object
+      properties:
+        status:
+          type: string
+          const: PENDING_EMAIL_CONFIRMATION
+        message:
+          type: string
+          const: Se os dados forem válidos, enviaremos a confirmação por e-mail.
+      required:
+        - status
+        - message
+      additionalProperties: false
+      description: "Resposta genérica e constante do cadastro: igual exista ou não conta com o e-mail/documento (anti-enumeração)."
+    RegisterRequest:
+      oneOf:
+        - type: object
+          properties:
+            account_type:
+              type: string
+              const: PF
+            name:
+              type: string
+              minLength: 2
+              maxLength: 120
+            email:
+              type: string
+              maxLength: 254
+              format: email
+              pattern: ^(?:[A-Za-z0-9_'+\-]+\.)*[A-Za-z0-9_'+\-]*[A-Za-z0-9_+-]@(?:[A-Za-z0-9][A-Za-z0-9\-]*\.)+[A-Za-z]{2,}$
+            password:
+              type: string
+              minLength: 15
+              maxLength: 128
+            cpf:
+              type: string
+              pattern: ^\d{3}\.?\d{3}\.?\d{3}-?\d{2}$
+            accepted_terms_version:
+              type: string
+              format: date
+              pattern: ^(?:(?:\d\d[2468][048]|\d\d[13579][26]|\d\d0[48]|[02468][048]00|[13579][26]00)-02-29|\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\d|30)|(?:02)-(?:0[1-9]|1\d|2[0-8])))$
+            accepted_privacy_version:
+              type: string
+              format: date
+              pattern: ^(?:(?:\d\d[2468][048]|\d\d[13579][26]|\d\d0[48]|[02468][048]00|[13579][26]00)-02-29|\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\d|30)|(?:02)-(?:0[1-9]|1\d|2[0-8])))$
+            marketing_opt_in:
+              default: false
+              type: boolean
+            captcha_token:
+              type: string
+              minLength: 1
+              maxLength: 4096
+          required:
+            - account_type
+            - name
+            - email
+            - password
+            - cpf
+            - accepted_terms_version
+            - accepted_privacy_version
+            - captcha_token
+          additionalProperties: false
+        - type: object
+          properties:
+            account_type:
+              type: string
+              const: PJ
+            name:
+              type: string
+              minLength: 2
+              maxLength: 120
+            email:
+              type: string
+              maxLength: 254
+              format: email
+              pattern: ^(?:[A-Za-z0-9_'+\-]+\.)*[A-Za-z0-9_'+\-]*[A-Za-z0-9_+-]@(?:[A-Za-z0-9][A-Za-z0-9\-]*\.)+[A-Za-z]{2,}$
+            password:
+              type: string
+              minLength: 15
+              maxLength: 128
+            cpf:
+              type: string
+              pattern: ^\d{3}\.?\d{3}\.?\d{3}-?\d{2}$
+            accepted_terms_version:
+              type: string
+              format: date
+              pattern: ^(?:(?:\d\d[2468][048]|\d\d[13579][26]|\d\d0[48]|[02468][048]00|[13579][26]00)-02-29|\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\d|30)|(?:02)-(?:0[1-9]|1\d|2[0-8])))$
+            accepted_privacy_version:
+              type: string
+              format: date
+              pattern: ^(?:(?:\d\d[2468][048]|\d\d[13579][26]|\d\d0[48]|[02468][048]00|[13579][26]00)-02-29|\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\d|30)|(?:02)-(?:0[1-9]|1\d|2[0-8])))$
+            marketing_opt_in:
+              default: false
+              type: boolean
+            captcha_token:
+              type: string
+              minLength: 1
+              maxLength: 4096
+            cnpj:
+              type: string
+              pattern: ^\d{2}\.?\d{3}\.?\d{3}\/?\d{4}-?\d{2}$
+          required:
+            - account_type
+            - name
+            - email
+            - password
+            - cpf
+            - accepted_terms_version
+            - accepted_privacy_version
+            - captcha_token
+            - cnpj
+          additionalProperties: false
+    ScoreBand:
+      type: string
+      enum:
+        - RISCO
+        - REGULAR
+        - BOM
+        - EXCELENTE
+    SessionResponse:
+      type: object
+      properties:
+        access_token:
+          type: string
+        expires_in:
+          type: integer
+          exclusiveMinimum: 0
+          maximum: 9007199254740991
+        account:
+          $ref: "#/components/schemas/AccountSummary"
+      required:
+        - access_token
+        - expires_in
+      additionalProperties: false
+    ShippingAddress:
+      type: object
+      properties:
+        zip_code:
+          type: string
+          pattern: ^\d{5}-?\d{3}$
+        street:
+          type: string
+          minLength: 1
+          maxLength: 200
+        number:
+          type: string
+          minLength: 1
+          maxLength: 20
+        complement:
+          type: string
+          maxLength: 100
+        district:
+          type: string
+          minLength: 1
+          maxLength: 100
+        city:
+          type: string
+          minLength: 1
+          maxLength: 100
+        state:
+          type: string
+          minLength: 2
+          maxLength: 2
+      required:
+        - zip_code
+        - street
+        - number
+        - district
+        - city
+        - state
+      additionalProperties: false
+    SubmitBidRequest:
+      type: object
+      properties:
+        unit_price:
+          minimum: 1
+          $ref: "#/components/schemas/Cents"
+        delivery_days:
+          type: integer
+          minimum: 1
+          maximum: 365
+        conditions:
+          type: string
+          maxLength: 1000
+      required:
+        - unit_price
+        - delivery_days
+      additionalProperties: false
+    UpdateBubbleRequest:
+      type: object
+      properties:
+        title:
+          type: string
+          minLength: 5
+          maxLength: 80
+        description:
+          type: string
+          maxLength: 2000
+        category_id:
+          type: string
+          minLength: 1
+          maxLength: 64
+        image_upload_ids:
+          maxItems: 5
+          type: array
+          items:
+            $ref: "#/components/schemas/Uuid"
+        max_quotas:
+          type: integer
+          minimum: 2
+          maximum: 10000
+        min_quotas:
+          type: integer
+          minimum: 1
+          maximum: 10000
+        max_pj_share:
+          type: number
+          minimum: 0.1
+          maximum: 1
+        duration_minutes:
+          type: integer
+          minimum: 60
+          maximum: 7200
+        price_tiers:
+          minItems: 1
+          maxItems: 10
+          type: array
+          items:
+            $ref: "#/components/schemas/PriceTier"
+        shipping_days:
+          type: integer
+          minimum: 1
+          maximum: 30
+        target_price:
+          minimum: 100
+          $ref: "#/components/schemas/Cents"
+        suggested_suppliers:
+          maxItems: 5
+          type: array
+          items:
+            anyOf:
+              - type: object
+                properties:
+                  cnpj:
+                    type: string
+                    pattern: ^\d{2}\.?\d{3}\.?\d{3}\/?\d{4}-?\d{2}$
+                required:
+                  - cnpj
+                additionalProperties: false
+              - type: object
+                properties:
+                  email:
+                    type: string
+                    format: email
+                    pattern: ^(?:[A-Za-z0-9_'+\-]+\.)*[A-Za-z0-9_'+\-]*[A-Za-z0-9_+-]@(?:[A-Za-z0-9][A-Za-z0-9\-]*\.)+[A-Za-z]{2,}$
+                required:
+                  - email
+                additionalProperties: false
+      additionalProperties: false
+    Uuid:
+      type: string
+      format: uuid
+      pattern: ^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$
+      description: UUID (v7 gerado pelo servidor).
+    VerificationStatus:
+      type: string
+      enum:
+        - VERIFIED
+        - PENDING_VERIFICATION
+        - IRREGULAR
