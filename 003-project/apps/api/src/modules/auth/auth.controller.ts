@@ -1,12 +1,7 @@
-import { Body, Controller, HttpCode, HttpStatus, Inject, Post, Req } from '@nestjs/common';
-import type { Request } from 'express';
+import { Body, Controller, Headers, HttpCode, HttpStatus, Inject, Ip, Post } from '@nestjs/common';
 import { RegisterPfRequest, type RegisterAcceptedResponse } from '@bolha/contracts';
 import { ZodValidationPipe } from '../../http/zod-validation.pipe.js';
-import { AuthService, type RegisterPfPayload, type RequestMeta } from './auth.service.js';
-
-export function requestMeta(req: Request): RequestMeta {
-  return { ip: req.ip, userAgent: req.get('user-agent') };
-}
+import { AuthService, type RegisterPfPayload } from './auth.service.js';
 
 @Controller('auth')
 export class AuthController {
@@ -17,8 +12,9 @@ export class AuthController {
   @HttpCode(HttpStatus.ACCEPTED)
   register(
     @Body(new ZodValidationPipe(RegisterPfRequest)) body: RegisterPfPayload,
-    @Req() req: Request,
+    @Ip() ip: string | undefined,
+    @Headers('user-agent') userAgent: string | undefined,
   ): Promise<RegisterAcceptedResponse> {
-    return this.authService.registerPf(body, requestMeta(req));
+    return this.authService.registerPf(body, { ip, userAgent });
   }
 }
