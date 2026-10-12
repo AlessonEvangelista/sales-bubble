@@ -154,7 +154,7 @@ describe('Prisma Client (driver adapter pg)', () => {
       include: { priceTiers: { orderBy: { minFilledQuotas: 'asc' } }, quotas: true },
     });
     expect(bubble.initialPrice).toBe(10_000n);
-    expect(bubble.priceTiers.map((t: { unitPrice: bigint }) => t.unitPrice)).toEqual([10_000n, 8_000n]);
+    expect(bubble.priceTiers.map((t) => t.unitPrice)).toEqual([10_000n, 8_000n]);
     expect(bubble.quotas).toHaveLength(1);
     expect(bubble.imageUrls).toEqual([]);
   });
@@ -300,14 +300,14 @@ describe('outbox (ADR-0010)', () => {
 
       const rolledBack = randomUUID();
       await prisma
-        .$transaction(async (tx: any) => {
+        .$transaction(async (tx) => {
           await tx.outboxEvent.create({ data: event(rolledBack) });
           throw new Error('rollback proposital');
         })
         .catch(() => undefined);
 
       const committed = randomUUID();
-      await prisma.$transaction(async (tx: any) => {
+      await prisma.$transaction(async (tx) => {
         await tx.outboxEvent.create({ data: event(committed) });
       });
 

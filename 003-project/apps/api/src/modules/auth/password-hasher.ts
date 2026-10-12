@@ -1,18 +1,21 @@
 import { Injectable } from '@nestjs/common';
+import { randomBytes } from 'node:crypto';
 import * as argon2 from 'argon2';
 
-/** Parâmetros NIST SP 800-63B / OWASP Password Storage Cheat Sheet para Argon2id (SEC-06) */
-export const ARGON2_OPTIONS: argon2.HashOptions = {
+/** Argon2id — parâmetros do OWASP Password Storage Cheat Sheet (SEC-06). */
+export const ARGON2_OPTIONS = {
   type: argon2.argon2id,
-  memoryCost: 65536, // 64 MiB
-  timeCost: 3,       // 3 iterações
-  parallelism: 4,    // 4 threads
-};
+  memoryCost: 65_536, // 64 MiB
+  timeCost: 3,
+  parallelism: 4,
+} as const;
 
 @Injectable()
 export class PasswordHasher {
-  async hash(password: string): Promise<string> {
-    return (await argon2.hash(password, ARGON2_OPTIONS)) as string;
+  #dummyHash: Promise<string> | undefined;
+
+  hash(password: string): Promise<string> {
+    return argon2.hash(password, ARGON2_OPTIONS);
   }
 
   async verify(hash: string, plain: string): Promise<boolean> {
@@ -24,17 +27,13 @@ export class PasswordHasher {
   }
 
   /**
-   * Dummy verify para mitigar ataques de timing (anti-enumeração, SEC-08).
-   * Executa uma verificação real com hash sintetizado para ter tempo constante quando usuário não existe.
+   * Verificação com o mesmo custo de uma real, para conta inexistente/duplicada (SEC-08):
+   * o hash fictício é gerado uma vez com os mesmos parâmetros, então o tempo de resposta não
+   * revela se o e-mail existe. Sempre `false`.
    */
-  async dummyVerify(plain: string): Promise<boolean> {
-    const dummyHash =
-      '$argon2id$v=19$m=65536,t=3,p=4$c29tZXNhbHQxMjM0NTY3OA$9v5vFjD/W+mXw9Lz6wN3Z0xP4qJ3l0fB1e2y8a4k9gA';
-    try {
-      await argon2.verify(dummyHash, plain);
-    } catch {
-      // Ignora erro
-    }
+  async dummyVerify(plain: string): Promise<false> {
+    this.#dummyHash ??= this.hash(randomBytes(32).toString('base64'));
+    await this.verify(await this.#dummyHash, plain);
     return false;
   }
 }

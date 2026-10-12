@@ -1,45 +1,24 @@
-import {
-  Controller,
-  Post,
-  Body,
-  HttpCode,
-  HttpStatus,
-  UsePipes,
-  PipeTransform,
-  BadRequestException,
-} from '@nestjs/common';
-import {
-  RegisterPfRequest,
-  GENERIC_REGISTER_RESPONSE,
-  type RegisterAcceptedResponse,
-} from '@bolha/contracts';
-import { AuthService } from './auth.service.js';
+import { Body, Controller, HttpCode, HttpStatus, Inject, Post, Req } from '@nestjs/common';
+import type { Request } from 'express';
+import { RegisterPfRequest, type RegisterAcceptedResponse } from '@bolha/contracts';
+import { ZodValidationPipe } from '../../http/zod-validation.pipe.js';
+import { AuthService, type RegisterPfPayload, type RequestMeta } from './auth.service.js';
 
-class ZodValidationPipe implements PipeTransform {
-  constructor(private readonly schema: { safeParse: (data: unknown) => { success: boolean; data?: any; error?: any } }) {}
-
-  transform(value: unknown) {
-    const result = this.schema.safeParse(value);
-    if (!result.success) {
-      throw new BadRequestException({
-        code: 'VALIDATION_FAILED',
-        errors: result.error.issues,
-      });
-    }
-    return result.data;
-  }
+export function requestMeta(req: Request): RequestMeta {
+  return { ip: req.ip, userAgent: req.get('user-agent') };
 }
-
-type RegisterPfPayload = typeof RegisterPfRequest._output;
 
 @Controller('auth')
 export class AuthController {
-  constructor(private readonly authService: AuthService) {}
+  constructor(@Inject(AuthService) private readonly authService: AuthService) {}
 
+  /** `POST /auth/register` (PF) → sempre `202` genérico (api-rest §2.1, SEC-08). */
   @Post('register')
   @HttpCode(HttpStatus.ACCEPTED)
-  @UsePipes(new ZodValidationPipe(RegisterPfRequest))
-  async register(@Body() body: RegisterPfPayload): Promise<RegisterAcceptedResponse> {
-    return this.authService.registerPf(body);
+  register(
+    @Body(new ZodValidationPipe(RegisterPfRequest)) body: RegisterPfPayload,
+    @Req() req: Request,
+  ): Promise<RegisterAcceptedResponse> {
+    return this.authService.registerPf(body, requestMeta(req));
   }
 }

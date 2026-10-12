@@ -3,6 +3,7 @@ import type { ApiEnv } from './config/env.js';
 import { HealthModule } from './health/health.module.js';
 import { FeatureFlagsModule } from './modules/platform/index.js';
 import { AuthModule } from './modules/auth/auth.module.js';
+import { DatabaseModule } from './modules/database/index.js';
 
 /**
  * Módulo raiz da API. Os módulos por bounded context (identity, bubble, bidding, …)
@@ -16,6 +17,7 @@ export class AppModule {
       imports: [
         HealthModule.register(env),
         FeatureFlagsModule.register(env),
+        DatabaseModule.register(env),
         AuthModule,
       ],
     };
