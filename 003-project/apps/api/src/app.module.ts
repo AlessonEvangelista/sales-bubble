@@ -2,7 +2,7 @@ import { Module, type DynamicModule } from '@nestjs/common';
 import type { ApiEnv } from './config/env.js';
 import { HealthModule } from './health/health.module.js';
 import { FeatureFlagsModule } from './modules/platform/index.js';
-import { AuthModule } from './modules/auth/auth.module.js';
+import { AuthModule } from './modules/auth/index.js';
 import { DatabaseModule } from './modules/database/index.js';
 
 /**
@@ -18,7 +18,7 @@ export class AppModule {
         HealthModule.register(env),
         FeatureFlagsModule.register(env),
         DatabaseModule.register(env),
-        AuthModule,
+        AuthModule.register(env),
       ],
     };
   }
