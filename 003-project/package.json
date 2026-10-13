@@ -23,7 +23,7 @@
     "typecheck": "turbo run typecheck",
     "test": "turbo run test",
     "test:coverage": "turbo run test -- --coverage",
-    "test:int": "turbo run db:generate --output-logs=errors-only && npm run test:int --workspace @bolha/database",
+    "test:int": "turbo run db:generate --output-logs=errors-only && turbo run test:int --filter=@bolha/database --output-logs=new-only",
     "format": "prettier --write .",
     "format:check": "prettier --check .",
     "test:secrets": "vitest run tools/secrets",
