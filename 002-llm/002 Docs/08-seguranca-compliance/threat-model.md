@@ -210,6 +210,9 @@ Regras:
 
 Base: OWASP Secrets Management Cheat Sheet (seções 3.2, 3.5 e 4).
 
+Política operacional (inventário por ambiente, rotação/incidente, gitleaks, OIDC e loader de
+segredos): [gestao-segredos.md](gestao-segredos.md) (BV-110).
+
 ---
 
 ## 8. Plano de pentest

@@ -25,4 +25,27 @@ describe('parseApiEnv', () => {
     );
     expect(() => parseApiEnv({ REDIS_URL: 'http://segredo@host' })).not.toThrow(/segredo/);
   });
+
+  it('valida FLAGS_DEFAULTS e limita o TTL do cache de flags a 10 s (BV-113)', () => {
+    expect(parseApiEnv(base).FLAGS_CACHE_TTL_MS).toBe(10_000);
+    expect(parseApiEnv({ ...base, FLAGS_DEFAULTS: 'payments_enabled:false' }).FLAGS_DEFAULTS).toBe(
+      'payments_enabled:false',
+    );
+    expect(() => parseApiEnv({ ...base, FLAGS_DEFAULTS: 'nao_existe:true' })).toThrow(
+      /FLAGS_DEFAULTS/,
+    );
+    expect(() => parseApiEnv({ ...base, FLAGS_CACHE_TTL_MS: '60000' })).toThrow(
+      /FLAGS_CACHE_TTL_MS/,
+    );
+  });
+
+  it('JWT e CAPTCHA: defaults do .env.example; CAPTCHA none é recusado em produção (US-004)', () => {
+    expect(parseApiEnv(base)).toMatchObject({
+      JWT_ACCESS_PRIVATE_KEY_PATH: './.secrets/jwt-access.pem',
+      JWT_ACCESS_TTL_SECONDS: 900,
+      CAPTCHA_PROVIDER: 'none',
+    });
+    expect(() => parseApiEnv({ ...base, NODE_ENV: 'production' })).toThrow(/CAPTCHA_PROVIDER/);
+    expect(() => parseApiEnv({ ...base, CAPTCHA_PROVIDER: 'turnstile' })).toThrow(/CAPTCHA_SECRET/);
+  });
 });

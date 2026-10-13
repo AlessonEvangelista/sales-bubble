@@ -190,6 +190,8 @@ module.exports = {
     // que as regras precisam ver (ex.: core-domain -> @nestjs/common, web -> packages/database/dist).
     // Os pontos de partida são só as pastas `src/` (ver script `lint:boundaries`); o que está em
     // node_modules e nos artefatos de build aparece como destino, mas não é percorrido.
+    // Prisma Client gerado (BV-107): código de terceiro, com ciclos internos e fora do git.
+    exclude: { path: '^packages/database/src/shared/generated/' },
     doNotFollow: {
       path: [
         '(^|/)node_modules/',

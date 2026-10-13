@@ -1,8 +1,11 @@
 import 'reflect-metadata';
 import { NestFactory } from '@nestjs/core';
-import { API_BASE_PATH } from '@bolha/contracts';
+import type { NestExpressApplication } from '@nestjs/platform-express';
 import { AppModule } from './app.module.js';
+import { configureHttpApp } from './http/configure-app.js';
 import { loadDotEnv, parseApiEnv } from './config/env.js';
+import { API_SECRET_NAMES } from './config/secret-names.js';
+import { resolveSecrets } from './config/secrets.js';
 
 /**
  * Processo `api` do monólito modular (ADR-0001): HTTP REST + (futuramente) gateway Socket.io.
@@ -10,9 +13,10 @@ import { loadDotEnv, parseApiEnv } from './config/env.js';
  */
 async function bootstrap(): Promise<void> {
   loadDotEnv();
-  const env = parseApiEnv();
-  const app = await NestFactory.create(AppModule.register(env));
-  app.setGlobalPrefix(API_BASE_PATH.replace(/^\//, ''));
+  // Segredos: em produção podem vir do secret manager (BV-110, gestao-segredos.md).
+  const env = parseApiEnv(await resolveSecrets(API_SECRET_NAMES));
+  const app = await NestFactory.create<NestExpressApplication>(AppModule.register(env));
+  configureHttpApp(app, env);
   app.enableShutdownHooks();
   await app.listen(env.API_PORT);
 }
