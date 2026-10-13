@@ -3,6 +3,15 @@ import { resolve } from 'node:path';
 import { parseFlagDefaults } from '@bolha/contracts';
 import { z } from 'zod';
 
+/** String vazia (ex.: `OTEL_EXPORTER_OTLP_ENDPOINT=` no .env) conta como ausente. */
+const emptyAsUndefined = (value: unknown): unknown => (value === '' ? undefined : value);
+const optionalUrl = z.preprocess(emptyAsUndefined, z.url({ protocol: /^https?$/ }).optional());
+const booleanFlag = (fallback: boolean) =>
+  z.preprocess(
+    (value) => (value === '' || value === undefined ? String(fallback) : value),
+    z.enum(['true', 'false']).transform((value) => value === 'true'),
+  );
+
 /**
  * Variáveis de ambiente da API (guia de desenvolvimento §3.3).
  *
@@ -18,6 +27,11 @@ export const apiEnvSchema = z.object({
   API_PORT: z.coerce.number().int().min(1).max(65535).default(3001),
   DATABASE_URL: z.url({ protocol: /^postgres(ql)?$/ }),
   REDIS_URL: z.url({ protocol: /^rediss?$/ }),
+  // --- Observabilidade (BV-108, slo-observabilidade.md §4–5). Todas opcionais, default seguro:
+  // sem endpoint OTLP a telemetria fica desligada.
+  OTEL_EXPORTER_OTLP_ENDPOINT: optionalUrl,
+  OTEL_SDK_DISABLED: booleanFlag(false),
+  OTEL_METRIC_EXPORT_INTERVAL: z.coerce.number().int().min(1_000).default(60_000),
   // Feature flags (BV-113): defaults por ambiente ("chave:true,chave:false") e TTL do cache
   // em memória (plano de release §3: efeito em ≤ 10 s, por isso o teto de 10 000 ms).
   FLAGS_DEFAULTS: z

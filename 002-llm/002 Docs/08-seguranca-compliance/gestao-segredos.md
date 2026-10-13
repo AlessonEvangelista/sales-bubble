@@ -41,7 +41,7 @@
 | `PAGARME_WEBHOOK_SECRET` | vazio | não usado | Secret Manager | Secret Manager | api | 90 dias ou imediata |
 | `OAUTH_GOOGLE_CLIENT_SECRET` | vazio ou app OAuth de dev | não usado | Secret Manager (app OAuth de staging) | Secret Manager (app de produção) | api | 180 dias |
 | `CAPTCHA_SECRET` | vazio (`CAPTCHA_PROVIDER=none`) | não usado | Secret Manager | Secret Manager | api | 180 dias |
-| `SENTRY_DSN` (baixo risco, tratado como segredo) | vazio | não usado | Secret Manager | Secret Manager | api, worker | sob demanda |
+| `SENTRY_DSN` (baixo risco, tratado como segredo; **adiado** — Sentry fora do escopo por decisão do usuário, BV-108, 2026-10-10) | vazio | não usado | Secret Manager | Secret Manager | api, worker | sob demanda |
 | Credencial de deploy | — | — | **OIDC** (§5), por job | **OIDC**, por job, environment `production` com revisores | pipeline | por job (efêmera) |
 | `RAILWAY_TOKEN` (só se a escolha for Railway) | — | — | segredo do GitHub Environment `staging` | segredo do GitHub Environment `production` | pipeline | 90 dias (§5.3) |
 | Tokens de ferramentas do dev (Jira, GitHub) | `003-project/.env` pessoal | — | — | — | o próprio dev | do provedor |

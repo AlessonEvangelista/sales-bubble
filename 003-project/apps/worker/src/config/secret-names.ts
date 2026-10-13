@@ -9,5 +9,4 @@ export const WORKER_SECRET_NAMES = [
   'PII_DATA_KEY_BASE64',
   'PII_HMAC_KEY_BASE64',
   'PAGARME_SECRET_KEY',
-  'SENTRY_DSN',
 ] as const;

@@ -2,6 +2,7 @@ import { Module, type DynamicModule } from '@nestjs/common';
 import type { ApiEnv } from './config/env.js';
 import { HealthModule } from './health/health.module.js';
 import { FeatureFlagsModule } from './modules/platform/index.js';
+import { ObservabilityModule } from './observability/observability.js';
 import { AuthModule } from './modules/auth/index.js';
 import { DatabaseModule } from './modules/database/index.js';
 
@@ -15,6 +16,7 @@ export class AppModule {
     return {
       module: AppModule,
       imports: [
+        ObservabilityModule,
         HealthModule.register(env),
         FeatureFlagsModule.register(env),
         DatabaseModule.register(env),

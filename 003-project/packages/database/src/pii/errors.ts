@@ -2,7 +2,7 @@
  * Erro único do módulo de criptografia de PII (ADR-0012).
  *
  * Regra: a mensagem NUNCA contém texto claro, chaves, ciphertext ou o valor normalizado.
- * Só um código estável e uma descrição genérica — o erro pode chegar ao log ou ao Sentry.
+ * Só um código estável e uma descrição genérica — o erro pode chegar ao log ou à telemetria.
  */
 export type PiiCryptoErrorCode =
   | 'INVALID_KEY'
