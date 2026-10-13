@@ -1,0 +1,39 @@
+# Contexto de build das imagens api/worker (BV-105). O contexto é 003-project/ e cada
+# Dockerfile faz `turbo prune`, então só o necessário entra na imagem — mas o que está aqui
+# nunca chega ao daemon (envio menor e nenhum segredo no contexto).
+
+# Segredos e configuração local — NUNCA na imagem (TM-14, SEC-10)
+.env
+.env.*
+!.env.example
+**/.env
+**/.env.*
+!**/.env.example
+.secrets/
+**/.secrets/
+**/*.pem
+**/*.key
+.npmrc
+**/.npmrc
+
+# Dependências e artefatos gerados (reconstruídos dentro do build)
+**/node_modules/
+**/dist/
+**/.next/
+**/out/
+**/.turbo/
+**/coverage/
+**/*.tsbuildinfo
+**/playwright-report/
+**/test-results/
+
+# Ferramentas, docs e protótipos que não vão para runtime
+.git
+.github
+.vscode
+.idea
+**/*.log
+prototipacao-gemini/
+prototipo-alterego/
+docker-compose*.yml
+compose*.yml
