@@ -96,7 +96,8 @@ export function requestContextMiddleware(logger: Logger) {
 
     runWithRequestContext({ requestId }, () => {
       res.once('finish', () => {
-        const path = (req.originalUrl ?? req.url ?? '').split(/[?#]/)[0] ?? '';
+        // Path limitado: vem do cliente, sem autenticação (até ~16 KB de URL).
+        const path = ((req.originalUrl ?? req.url ?? '').split(/[?#]/)[0] ?? '').slice(0, 512);
         const route = req.route?.path ? `${req.baseUrl ?? ''}${req.route.path}` : undefined;
         const status = res.statusCode;
         const durationMs = Number(process.hrtime.bigint() - startedAt) / 1e6;

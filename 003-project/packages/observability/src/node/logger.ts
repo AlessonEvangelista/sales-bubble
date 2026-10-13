@@ -71,9 +71,10 @@ export function createLogger(config: LoggerConfig, destination?: DestinationStre
         ),
     },
     hooks: {
-      // Terceira camada: a linha JSON final passa pela máscara de padrões (e-mail, CPF, CNPJ,
-      // telefone, JWT), pegando o que tenha vindo de serializers ou campos não previstos.
-      streamWrite: (line) => redactString(line),
+      // Terceira camada: a linha final (JSON) é remascarada valor a valor, pegando o que tenha
+      // vindo de serializers ou campos não previstos — sem quebrar o JSON (mascarar a linha
+      // crua transformava `{"amount":12345678901}` em `{"amount":[REDACTED]}`).
+      streamWrite: redactLogLine,
       // Mensagens (`msg`) e argumentos de interpolação também passam pela máscara.
       logMethod(args, method) {
         const safe = args.map((arg: unknown) =>
@@ -106,3 +107,13 @@ export function correlationFields(): Record<string, string> {
 }
 
 export type { DestinationStream, Logger } from 'pino';
+
+/** Remascara uma linha de log JSON preservando a sintaxe; texto não-JSON vai inteiro. */
+export function redactLogLine(line: string): string {
+  try {
+    return `${JSON.stringify(redactDeep(JSON.parse(line) as unknown))}
+`;
+  } catch {
+    return redactString(line);
+  }
+}

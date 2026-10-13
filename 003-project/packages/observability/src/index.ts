@@ -5,6 +5,7 @@
  */
 export {
   REDACTED,
+  MAX_REDACT_INPUT,
   PII_DETECTORS,
   findPii,
   isSensitiveKey,

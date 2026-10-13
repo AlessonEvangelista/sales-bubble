@@ -69,6 +69,13 @@ const SENSITIVE_KEY_SUFFIXES = [
   'setcookie',
   'idempotencykey',
   'otp',
+  'csrf',
+  'privatekey',
+  'hmackey',
+  'datakey',
+  'dsn',
+  'databaseurl',
+  'redisurl',
   // Dados de cartão (nunca trafegam pelo backend, mas por garantia)
   'card',
   'cardnumber',
@@ -100,6 +107,9 @@ const SENSITIVE_KEY_FRAGMENTS = [
   'telefone',
   'endereco',
   'card',
+  'csrf',
+  'bvrt',
+  'privatekey',
 ] as const;
 
 /** Nomes técnicos que contêm um fragmento sensível mas não carregam PII. */
@@ -151,54 +161,86 @@ function endsWithWord(key: string, suffixLength: number, normalized: string): bo
 }
 
 /**
- * Padrões de PII em texto livre. A ordem importa: tokens primeiro (contêm dígitos e pontos),
- * depois CNPJ (14 dígitos) antes de CPF (11) e telefone.
+ * Cada padrão tem um pré-filtro barato (`when`) e quantificadores LIMITADOS: o texto vem de fora
+ * (path da URL, mensagens), então nenhuma regex pode ter custo superlinear (ReDoS — achado do
+ * teste do BV-108: um path de 16 KB bloqueava o event loop por ~1 s).
  */
-const TEXT_PATTERNS: readonly { name: string; pattern: RegExp; replacement: string }[] = [
+const TEXT_PATTERNS: readonly {
+  name: string;
+  when: (text: string) => boolean;
+  pattern: RegExp;
+  replacement: string;
+}[] = [
   // JWT (header.payload.signature em base64url, header começa com `eyJ`)
   {
     name: 'jwt',
+    when: (text) => text.includes('eyJ'),
     pattern: /\beyJ[A-Za-z0-9_-]{5,}\.[A-Za-z0-9_-]{5,}\.[A-Za-z0-9_-]*/g,
     replacement: REDACTED,
   },
   // Credencial em cabeçalho/URL: `Bearer xxx`, `Basic xxx`
   {
     name: 'bearer',
+    when: (text) => /bearer|basic/i.test(text),
     pattern: /\b(Bearer|Basic)\s+[A-Za-z0-9._~+/=-]{8,}/gi,
     replacement: `$1 ${REDACTED}`,
+  },
+  // Usuário/senha em URL de conexão: `postgres://user:senha@host`, `redis://:senha@host`
+  {
+    name: 'url-credentials',
+    when: (text) => text.includes('://'),
+    pattern: /\b([a-z][a-z0-9+.-]{0,20}:\/\/)[^\s:/@]{0,128}:[^\s@/]{1,256}@/gi,
+    replacement: `$1${REDACTED}@`,
   },
   // Parâmetros de query com nome sensível: `?token=...&email=...`
   {
     name: 'query-param',
+    when: (text) => text.includes('='),
     pattern:
-      /([?&;](?:code|[a-z_]*?(?:email|cpf|cnpj|document|phone|telefone|password|senha|token|secret|api_?key)[a-z_]*)=)[^&#\s"']+/gi,
+      /([?&;](?:code|[a-z_]{0,32}?(?:email|cpf|cnpj|document|phone|telefone|password|senha|token|secret|api_?key)[a-z_]{0,32})=)[^&#\s"']{1,4096}/gi,
     replacement: `$1${REDACTED}`,
   },
-  // E-mail
+  // E-mail (limites do RFC 5321: local ≤ 64, rótulo ≤ 63)
   {
     name: 'email',
-    pattern: /[A-Za-z0-9._%+-]+@[A-Za-z0-9-]+(?:\.[A-Za-z0-9-]+)*\.[A-Za-z]{2,}/g,
+    when: (text) => text.includes('@'),
+    pattern:
+      /[A-Za-z0-9._%+-]{1,64}@[A-Za-z0-9-]{1,63}(?:\.[A-Za-z0-9-]{1,63}){0,8}\.[A-Za-z]{2,24}/g,
     replacement: REDACTED,
   },
   // CNPJ formatado (00.000.000/0000-00) ou 14 dígitos isolados
   {
     name: 'cnpj',
+    when: hasDigit,
     pattern: /\b\d{2}\.?\d{3}\.?\d{3}\/?\d{4}-?\d{2}\b/g,
     replacement: REDACTED,
   },
   // CPF formatado (000.000.000-00) ou 11 dígitos isolados
   {
     name: 'cpf',
+    when: hasDigit,
     pattern: /\b\d{3}\.?\d{3}\.?\d{3}-?\d{2}\b/g,
     replacement: REDACTED,
   },
   // Telefone BR: +55 (11) 91234-5678, (11) 1234-5678, 11 91234-5678
   {
     name: 'phone',
+    when: hasDigit,
     pattern: /(?:\+?55[\s-]?)?\(?\b\d{2}\)?[\s-]?9?\d{4}[\s-]\d{4}\b/g,
     replacement: REDACTED,
   },
 ];
+
+function hasDigit(text: string): boolean {
+  return /\d/.test(text);
+}
+
+/**
+ * Teto do texto mascarado. Acima dele o restante é descartado (`…[Truncated]`): limita o custo
+ * por linha de log e impede que um valor gigante vindo de fora monopolize o event loop.
+ */
+export const MAX_REDACT_INPUT = 8_192;
+const TRUNCATED_SUFFIX = '…[Truncated]';
 
 /** Regex de detecção (sem substituição) usadas pelos testes de "não vaza" e pelo detector AL-21. */
 export const PII_DETECTORS: Readonly<Record<'email' | 'cpf' | 'cnpj' | 'jwt', RegExp>> = {
@@ -217,9 +259,10 @@ export function findPii(text: string): string[] {
 
 /** Mascara e-mails, CPFs, CNPJs, telefones, JWTs e credenciais dentro de um texto livre. */
 export function redactString(text: string): string {
-  let result = text;
-  for (const { pattern, replacement } of TEXT_PATTERNS) {
-    result = result.replace(pattern, replacement);
+  let result =
+    text.length > MAX_REDACT_INPUT ? text.slice(0, MAX_REDACT_INPUT) + TRUNCATED_SUFFIX : text;
+  for (const { when, pattern, replacement } of TEXT_PATTERNS) {
+    if (when(result)) result = result.replace(pattern, replacement);
   }
   return result;
 }

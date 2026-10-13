@@ -116,6 +116,22 @@ describe('createLogger (pino estruturado sem PII)', () => {
   });
 });
 
+describe('createLogger — linha sempre JSON válido', () => {
+  it('números longos não viram `[REDACTED]` sem aspas e cookies opacos somem', () => {
+    const out = memoryDestination();
+    const logger = createLogger(loggerConfig, out.stream);
+
+    logger.info({ amount_cents: 12345678901, order: 98765432109876 }, 'pagamento');
+    logger.info({ cookies: { '__Host-bv_rt': 'opaco123', bv_csrf: 'csrf456' } });
+    logger.info({ path: `/api/v1/${'a'.repeat(20_000)}` });
+
+    const lines = out.json(); // lança se alguma linha não for JSON
+    expect(lines[0]).toMatchObject({ amount_cents: 12345678901, order: 98765432109876 });
+    expect(out.lines.join(' ')).not.toMatch(/opaco123|csrf456/);
+    expect(String(lines[2]!.path).endsWith('…[Truncated]')).toBe(true);
+  });
+});
+
 describe('RedactingSpanProcessor (spans sem PII)', () => {
   it('remove PII de atributos, eventos, exceções e status antes de exportar', () => {
     tracer().startActiveSpan('identity.register', (span) => {

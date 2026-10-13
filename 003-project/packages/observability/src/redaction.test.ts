@@ -2,6 +2,7 @@ import { describe, expect, it } from 'vitest';
 import {
   findPii,
   isSensitiveKey,
+  MAX_REDACT_INPUT,
   REDACTED,
   redactAttributes,
   redactDeep,
@@ -168,5 +169,57 @@ describe('redactAttributes (spans)', () => {
       'http.response.status_code': 200,
       tags: [`a ${REDACTED}`, 'b'],
     });
+  });
+});
+
+describe('redactString — custo limitado (ReDoS, achado do teste do BV-108)', () => {
+  /** Tempo de uma chamada, em ms. */
+  const elapsed = (input: string): number => {
+    const start = performance.now();
+    redactString(input);
+    return performance.now() - start;
+  };
+
+  it.each([
+    ['100 mil caracteres alfanuméricos sem @', 'a'.repeat(100_000)],
+    ['path de 16 KB no log de acesso', `/api/v1/${'a'.repeat(16_000)}`],
+    ['muitos @ e pontos', 'a@a.'.repeat(5_000)],
+    ['dígitos e pontos repetidos', '1.'.repeat(10_000)],
+    ['query com nome sensível gigante', `?${'token'.repeat(2_000)}=x`],
+  ])('%s: < 50 ms', (_, input) => {
+    redactString(input); // aquece o JIT
+    expect(elapsed(input)).toBeLessThan(50);
+  });
+
+  it('trunca texto acima do teto e ainda mascara o início', () => {
+    const result = redactString(`${EMAIL} ${'x'.repeat(MAX_REDACT_INPUT * 2)}`);
+    expect(result.length).toBeLessThan(MAX_REDACT_INPUT + 20);
+    expect(result.endsWith('…[Truncated]')).toBe(true);
+    expect(result).not.toContain(EMAIL);
+  });
+});
+
+describe('segredos de infraestrutura e cookies de sessão', () => {
+  it('mascara usuário/senha em URL de conexão sem depender do TLD', () => {
+    expect(redactString('postgres://bolha:s3nh4@localhost:5432/db')).toBe(
+      `postgres://${REDACTED}@localhost:5432/db`,
+    );
+    expect(redactString('redis://:pw-redis@h:6379')).toBe(`redis://${REDACTED}@h:6379`);
+    expect(redactString('https://example.com/a:b')).toBe('https://example.com/a:b');
+  });
+
+  it.each([
+    'DATABASE_URL',
+    'redisUrl',
+    'SENTRY_DSN',
+    'privateKey',
+    'PII_HMAC_KEY',
+    'dataKey',
+    '__Host-bv_rt',
+    'bv_csrf',
+    'x-csrf-token',
+  ])('%s é chave sensível', (key) => {
+    expect(isSensitiveKey(key)).toBe(true);
+    expect(redactDeep({ [key]: 'opaco-sem-padrao' })).toEqual({ [key]: REDACTED });
   });
 });
