@@ -23,6 +23,7 @@ export interface AccountRow {
   role: string;
   score: number;
   scoreModelVersion: string;
+  gatewayRecipientStatus: string | null;
 }
 
 export interface ConsentRow {
@@ -33,11 +34,27 @@ export interface ConsentRow {
   grantedAt: Date;
   ipHash: Uint8Array | null;
   userAgent: string | null;
+  revokedAt: Date | null;
+}
+
+export interface RefreshTokenRow {
+  id: string;
+  accountId: string;
+  familyId: string;
+  tokenHash: Uint8Array;
+  issuedAt: Date;
+  expiresAt: Date;
+  rotatedAt: Date | null;
+  replacedBy: string | null;
+  revokedAt: Date | null;
+  ipHash: Uint8Array | null;
+  userAgent: string | null;
 }
 
 export interface InMemoryDb {
   accounts: AccountRow[];
   consents: ConsentRow[];
+  refreshTokens: RefreshTokenRow[];
 }
 
 type Where = Partial<Record<string, unknown>> & { OR?: Where[] };
@@ -48,7 +65,9 @@ const ACCOUNT_UNIQUE: [keyof AccountRow, string][] = [
   ['documentHash', 'accounts_document_hash_uk'],
 ];
 
-export function createInMemoryPrisma(db: InMemoryDb = { accounts: [], consents: [] }): {
+export function createInMemoryPrisma(
+  db: InMemoryDb = { accounts: [], consents: [], refreshTokens: [] },
+): {
   prisma: PrismaClient;
   db: InMemoryDb;
 } {
@@ -56,10 +75,22 @@ export function createInMemoryPrisma(db: InMemoryDb = { accounts: [], consents: 
     account: {
       findFirst: async ({ where }: { where: Where }) =>
         db.accounts.find((a) => matches(a, where)) ?? null,
-      findUnique: async ({ where }: { where: Where }) =>
-        db.accounts.find((a) => matches(a, where)) ?? null,
+      findUnique: async ({ where }: { where: Where }) => {
+        const account = db.accounts.find((a) => matches(a, where));
+        if (!account) return null;
+        // `include: { consents: { where: { revokedAt: null }, orderBy: grantedAt desc } }`
+        const consents = db.consents
+          .filter((c) => c.accountId === account.id && c.revokedAt === null)
+          .sort((a, b) => b.grantedAt.getTime() - a.grantedAt.getTime());
+        return { ...account, consents };
+      },
       create: async ({ data }: { data: Partial<AccountRow> }) => {
-        const row: AccountRow = { score: 500, scoreModelVersion: 'v1', ...data } as AccountRow;
+        const row = {
+          score: 500,
+          scoreModelVersion: 'v1',
+          gatewayRecipientStatus: null,
+          ...data,
+        } as AccountRow;
         for (const [column, constraint] of ACCOUNT_UNIQUE) {
           if (db.accounts.some((a) => equal(a[column], row[column])))
             throw uniqueViolation(constraint);
@@ -69,9 +100,38 @@ export function createInMemoryPrisma(db: InMemoryDb = { accounts: [], consents: 
       },
     },
     consent: {
-      createMany: async ({ data }: { data: Omit<ConsentRow, 'grantedAt'>[] }) => {
-        db.consents.push(...data.map((c) => ({ grantedAt: new Date(), ...c })));
+      createMany: async ({ data }: { data: Omit<ConsentRow, 'grantedAt' | 'revokedAt'>[] }) => {
+        db.consents.push(...data.map((c) => ({ grantedAt: new Date(), revokedAt: null, ...c })));
         return { count: data.length };
+      },
+    },
+    refreshToken: {
+      findUnique: async ({ where, include }: { where: Where; include?: { account?: boolean } }) => {
+        const token = db.refreshTokens.find((t) => matches(t, where));
+        if (!token) return null;
+        if (!include?.account) return { ...token };
+        return { ...token, account: db.accounts.find((a) => a.id === token.accountId) };
+      },
+      create: async ({ data }: { data: Partial<RefreshTokenRow> }) => {
+        const row = {
+          issuedAt: new Date(),
+          rotatedAt: null,
+          replacedBy: null,
+          revokedAt: null,
+          ipHash: null,
+          userAgent: null,
+          ...data,
+        } as RefreshTokenRow;
+        if (db.refreshTokens.some((t) => equal(t.tokenHash, row.tokenHash))) {
+          throw uniqueViolation('refresh_tokens_token_hash_key');
+        }
+        db.refreshTokens.push(row);
+        return row;
+      },
+      updateMany: async ({ where, data }: { where: Where; data: Partial<RefreshTokenRow> }) => {
+        const rows = db.refreshTokens.filter((t) => matches(t, where));
+        for (const row of rows) Object.assign(row, data);
+        return { count: rows.length };
       },
     },
     $transaction: async <T>(fn: (tx: unknown) => Promise<T>): Promise<T> => {

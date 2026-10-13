@@ -27,6 +27,7 @@
     "format": "prettier --write .",
     "format:check": "prettier --check .",
     "test:secrets": "vitest run tools/secrets",
+    "test:security": "turbo run build --filter=@bolha/contracts --output-logs=errors-only && vitest run tools/security && turbo run test --filter=@bolha/api --output-logs=new-only -- anti-enumeration",
     "hooks:install": "node tools/git-hooks/install.mjs",
     "hooks:uninstall": "node tools/git-hooks/install.mjs --uninstall",
     "db:up": "docker compose up -d --wait",

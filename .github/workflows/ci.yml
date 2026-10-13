@@ -256,6 +256,8 @@ jobs:
           echo "GITLEAKS_BIN=$RUNNER_TEMP/gitleaks" >> "$GITHUB_ENV"
       - name: Regras de segredos do projeto (.gitleaks.toml) e loader (BV-110)
         run: npm run test:secrets
+      - name: Gate anti-enumeração — cadastro e login pelo HTTP (SEC-22 / BV-153)
+        run: npm run test:security
 
   codeql:
     name: SAST (CodeQL security-extended)
