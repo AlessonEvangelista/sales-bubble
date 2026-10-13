@@ -3,6 +3,8 @@ import type { ApiEnv } from './config/env.js';
 import { HealthModule } from './health/health.module.js';
 import { FeatureFlagsModule } from './modules/platform/index.js';
 import { ObservabilityModule } from './observability/observability.js';
+import { AuthModule } from './modules/auth/index.js';
+import { DatabaseModule } from './modules/database/index.js';
 
 /**
  * Módulo raiz da API. Os módulos por bounded context (identity, bubble, bidding, …)
@@ -13,7 +15,13 @@ export class AppModule {
   static register(env: ApiEnv): DynamicModule {
     return {
       module: AppModule,
-      imports: [ObservabilityModule, HealthModule.register(env), FeatureFlagsModule.register(env)],
+      imports: [
+        ObservabilityModule,
+        HealthModule.register(env),
+        FeatureFlagsModule.register(env),
+        DatabaseModule.register(env),
+        AuthModule.register(env),
+      ],
     };
   }
 }

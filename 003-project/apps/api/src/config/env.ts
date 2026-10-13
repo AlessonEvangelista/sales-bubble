@@ -49,6 +49,16 @@ export const apiEnvSchema = z.object({
       { message: 'FLAGS_DEFAULTS inválido' },
     ),
   FLAGS_CACHE_TTL_MS: z.coerce.number().int().min(100).max(10_000).default(10_000),
+  // Saltos de proxy confiáveis para `req.ip` (Cloud Run/LB: 1). 0 = conexão direta.
+  TRUST_PROXY_HOPS: z.coerce.number().int().min(0).max(5).default(0),
+  // Access token RS256 (BV-15, api-rest §1.2). Caminhos relativos à raiz do monorepo ou ao
+  // diretório atual; em dev, gerar com `npm run keys:dev`.
+  JWT_ACCESS_PRIVATE_KEY_PATH: z.string().min(1).default('./.secrets/jwt-access.pem'),
+  JWT_ACCESS_PUBLIC_KEY_PATH: z.string().min(1).default('./.secrets/jwt-access.pub'),
+  JWT_ACCESS_TTL_SECONDS: z.coerce.number().int().min(60).max(3_600).default(900),
+  // CAPTCHA do login após 3 falhas (US-004). `none` só fora de produção.
+  CAPTCHA_PROVIDER: z.enum(['none', 'turnstile', 'hcaptcha']).default('none'),
+  CAPTCHA_SECRET: z.string().optional(),
 });
 
 export type ApiEnv = z.infer<typeof apiEnvSchema>;
@@ -58,7 +68,16 @@ export type ApiEnv = z.infer<typeof apiEnvSchema>;
  * nunca os valores (podem conter segredos — TM-14).
  */
 export function parseApiEnv(source: NodeJS.ProcessEnv = process.env): ApiEnv {
-  const result = apiEnvSchema.safeParse(source);
+  const result = apiEnvSchema
+    .superRefine((env, ctx) => {
+      if (env.NODE_ENV === 'production' && env.CAPTCHA_PROVIDER === 'none') {
+        ctx.addIssue({ code: 'custom', path: ['CAPTCHA_PROVIDER'], message: 'none em produção' });
+      }
+      if (env.CAPTCHA_PROVIDER !== 'none' && !env.CAPTCHA_SECRET) {
+        ctx.addIssue({ code: 'custom', path: ['CAPTCHA_SECRET'], message: 'obrigatório' });
+      }
+    })
+    .safeParse(source);
   if (!result.success) {
     const names = [...new Set(result.error.issues.map((issue) => issue.path.join('.')))];
     throw new Error(

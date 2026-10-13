@@ -16,15 +16,20 @@
     "@bolha/contracts": "*",
     "@bolha/core-domain": "*",
     "@bolha/database": "*",
+    "@bolha/observability": "*",
     "@nestjs/common": "^12.1.2",
     "@nestjs/core": "^12.1.2",
+    "@nestjs/platform-express": "^12.1.2",
+    "@opentelemetry/instrumentation": "^0.223.0",
+    "@types/cookie-parser": "^1.4.10",
+    "@types/jsonwebtoken": "^9.0.10",
+    "argon2": "^0.45.1",
+    "cookie-parser": "^1.4.7",
+    "ioredis": "^6.0.0",
+    "jsonwebtoken": "^9.0.3",
     "reflect-metadata": "^0.2.2",
     "rxjs": "^7.8.2",
-    "@nestjs/platform-express": "^12.1.2",
-    "ioredis": "^6.0.0",
-    "zod": "^4.6.5",
-    "@bolha/observability": "*",
-    "@opentelemetry/instrumentation": "^0.223.0"
+    "zod": "^4.6.5"
   },
   "devDependencies": {
     "@nestjs/cli": "^12.0.8"
